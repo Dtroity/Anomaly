@@ -1,0 +1,35 @@
+version: '3.8'
+
+# Anomaly VPN - Node (VPS #2)
+# Содержит только: Marzban Node + Xray
+# Подключается к Control Server
+
+services:
+  # Marzban Node - подключается к Control Server
+  marzban-node:
+    build:
+      context: ./Marzban-0.8.4
+      dockerfile: Dockerfile
+    container_name: anomaly-node
+    restart: unless-stopped
+    env_file:
+      - .env.node
+    volumes:
+      - node_data:/var/lib/marzban
+      - node_xray:/usr/local/share/xray
+    ports:
+      - "443:443"    # VLESS Reality
+      - "80:80"      # Fallback
+    networks:
+      - node-network
+    # Node подключается к Control Server инициативно (outbound)
+    # Не требует входящих соединений для управления
+
+volumes:
+  node_data:
+  node_xray:
+
+networks:
+  node-network:
+    driver: bridge
+

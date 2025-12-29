@@ -1,0 +1,120 @@
+version: '3.8'
+
+# Anomaly VPN - Control Server (VPS #1)
+# Содержит: Marzban, Bot, API, Nginx, Database
+
+services:
+  # Marzban - панель управления нодами
+  marzban:
+    build:
+      context: ./Marzban-0.8.4
+      dockerfile: Dockerfile
+    container_name: anomaly-marzban
+    restart: unless-stopped
+    env_file:
+      - .env.marzban
+    volumes:
+      - marzban_data:/var/lib/marzban
+      - marzban_xray:/usr/local/share/xray
+    ports:
+      - "62050:62050"  # Marzban панель (только локально через Nginx)
+    networks:
+      - anomaly-network
+    depends_on:
+      - db
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: anomaly-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-anomaly}
+      POSTGRES_USER: ${DB_USER:-anomaly}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - anomaly-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-anomaly}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  api:
+    build:
+      context: ./vpnbot
+      dockerfile: Dockerfile
+    container_name: anomaly-api
+    restart: unless-stopped
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
+    env_file:
+      - .env
+    volumes:
+      - ./vpnbot/data:/app/data
+      - ./vpnbot/logs:/app/logs
+    ports:
+      - "127.0.0.1:8000:8000"  # Только локально, доступ через Nginx
+    networks:
+      - anomaly-network
+    depends_on:
+      db:
+        condition: service_healthy
+      marzban:
+        condition: service_started
+
+  # Telegram Bot
+  bot:
+    build:
+      context: ./vpnbot
+      dockerfile: Dockerfile
+    container_name: anomaly-bot
+    restart: unless-stopped
+    command: python main.py
+    env_file:
+      - .env
+    volumes:
+      - ./vpnbot/data:/app/data
+      - ./vpnbot/logs:/app/logs
+    networks:
+      - anomaly-network
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+      marzban:
+        condition: service_started
+
+  # Nginx - обратный прокси и SSL
+  nginx:
+    image: nginx:alpine
+    container_name: anomaly-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - anomaly-network
+    depends_on:
+      - api
+      - marzban
+    labels:
+      - "traefik.enable=false"
+
+volumes:
+  postgres_data:
+  marzban_data:
+  marzban_xray:
+  nginx_logs:
+
+networks:
+  anomaly-network:
+    driver: bridge
