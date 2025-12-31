@@ -24,16 +24,28 @@ echo ""
 # 2. Создать директорию для сертификатов Marzban в volume
 echo "📁 Настройка сертификатов для Marzban..."
 
+# Проверить, что сертификаты существуют
+if [ ! -f "$CERT_PATH/fullchain.pem" ] || [ ! -f "$CERT_PATH/privkey.pem" ]; then
+    echo "❌ Сертификаты не найдены в $CERT_PATH"
+    echo "   Проверьте путь к сертификатам"
+    exit 1
+fi
+
+echo "✅ Сертификаты найдены:"
+echo "   - $CERT_PATH/fullchain.pem"
+echo "   - $CERT_PATH/privkey.pem"
+
 # Создать директорию в volume
 docker run --rm \
   -v anomaly_marzban_data:/data \
   alpine mkdir -p /data/ssl
 
 # Копировать сертификаты в volume
+echo "📋 Копирование сертификатов..."
 docker run --rm \
   -v anomaly_marzban_data:/data \
   -v "$CERT_PATH:/certs:ro" \
-  alpine sh -c 'cp /certs/fullchain.pem /data/ssl/cert.pem && cp /certs/privkey.pem /data/ssl/key.pem && chmod 644 /data/ssl/cert.pem && chmod 600 /data/ssl/key.pem'
+  alpine sh -c 'if [ -f /certs/fullchain.pem ] && [ -f /certs/privkey.pem ]; then cp /certs/fullchain.pem /data/ssl/cert.pem && cp /certs/privkey.pem /data/ssl/key.pem && chmod 644 /data/ssl/cert.pem && chmod 600 /data/ssl/key.pem && echo "Сертификаты скопированы"; else echo "Ошибка: сертификаты не найдены в /certs"; exit 1; fi'
 
 echo "✅ Сертификаты скопированы в volume Marzban"
 echo ""
