@@ -62,7 +62,7 @@ fi
 
 read -p "Сделать супер-администратором (sudo)? (y/n, по умолчанию: y): " -n 1 -r
 echo ""
-IS_SUDO="--is-sudo"
+IS_SUDO="--sudo"
 if [[ ! $REPLY =~ ^[Yy]$ ]] && [ -n "$REPLY" ]; then
     IS_SUDO=""
 fi
@@ -90,6 +90,6 @@ else
     echo "   Возможно, администратор с таким именем уже существует"
     echo ""
     echo "💡 Попробуйте создать администратора вручную:"
-    echo "   docker-compose exec marzban marzban-cli admin create --is-sudo"
+    echo "   docker-compose exec marzban marzban-cli admin create --sudo"
     exit 1
 fi
