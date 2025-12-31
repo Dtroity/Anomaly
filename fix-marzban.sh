@@ -14,8 +14,11 @@ docker-compose stop marzban
 # Создать базовый xray_config.json в volume
 echo "📝 Создание xray_config.json..."
 
-# Создаем минимальную валидную конфигурацию с пустым inbound (Marzban требует наличие inbounds)
-XRAY_CONFIG='{
+# Используем временный контейнер с тем же volume для создания правильной конфигурации
+docker run --rm \
+  -v anomaly_marzban_data:/data \
+  alpine sh -c 'cat > /data/xray_config.json << '\''EOF'\''
+{
   "log": {
     "loglevel": "warning"
   },
@@ -39,12 +42,9 @@ XRAY_CONFIG='{
       "tag": "DIRECT"
     }
   ]
-}'
-
-# Используем временный контейнер с тем же volume
-docker run --rm \
-  -v anomaly_marzban_data:/data \
-  alpine sh -c "echo '$XRAY_CONFIG' > /data/xray_config.json && cat /data/xray_config.json"
+}
+EOF
+cat /data/xray_config.json'
 
 echo ""
 echo "✅ xray_config.json создан"
