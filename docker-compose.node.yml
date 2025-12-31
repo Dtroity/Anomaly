@@ -17,6 +17,7 @@ services:
     volumes:
       - node_data:/var/lib/marzban
       - node_xray:/usr/local/share/xray
+      - ./node-certs:/var/lib/marzban/ssl:ro  # SSL сертификаты для ноды
     ports:
       - "443:443"    # VLESS Reality
       - "80:80"      # Fallback
