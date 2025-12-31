@@ -209,7 +209,7 @@ class SystemLog(Base):
     level = Column(String(20), default="INFO", nullable=False)  # INFO, WARNING, ERROR
     message = Column(Text, nullable=False)
     user_id = Column(Integer, nullable=True, index=True)
-    metadata = Column(Text, nullable=True)  # JSON string
+    extra_data = Column(Text, nullable=True)  # JSON string (renamed from metadata to avoid SQLAlchemy conflict)
     created_at = Column(DateTime, default=func.now(), nullable=False, index=True)
     
     def __repr__(self):
