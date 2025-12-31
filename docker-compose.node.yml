@@ -20,6 +20,7 @@ services:
     ports:
       - "443:443"    # VLESS Reality
       - "80:80"      # Fallback
+      - "62050:62050" # Marzban Node API (для подключения Control Server)
     networks:
       - node-network
     # Node подключается к Control Server инициативно (outbound)
