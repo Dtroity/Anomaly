@@ -56,29 +56,34 @@
 
 ```bash
 # Клонировать репозиторий
-git clone <repository-url>
-cd anomaly-vpn
-
-# Запустить установку Control Server
-sudo bash install-control.sh
+cd /opt
+git clone https://github.com/Dtroity/Anomaly.git
+cd Anomaly
 
 # Настроить конфигурацию
+cp env.before-ssl.template .env
 nano .env
+cp env.marzban.template .env.marzban
 nano .env.marzban
+
+# Запустить сервисы
+docker-compose up -d
 ```
 
 ### 2. Установка на VPS #2 (Node)
 
 ```bash
 # Клонировать репозиторий
-git clone <repository-url>
-cd anomaly-vpn
-
-# Запустить установку Node
-sudo bash install-node.sh
+cd /opt
+git clone https://github.com/Dtroity/Anomaly.git
+cd Anomaly
 
 # Настроить .env.node
+cp env.node.template .env.node
 nano .env.node
+
+# Запустить Node
+docker-compose -f docker-compose.node.yml up -d
 ```
 
 ### 3. Настройка DNS
@@ -125,7 +130,7 @@ YOOKASSA_SECRET_KEY=your_secret_key
 
 ```bash
 # На VPS #1 (Control Server)
-cd /opt/anomaly-vpn
+cd /opt/Anomaly
 docker-compose up -d
 
 # Проверить статус
@@ -238,7 +243,7 @@ docker-compose down
 
 ```bash
 # Control Server
-cd /opt/anomaly-vpn
+cd /opt/Anomaly
 git pull
 docker-compose build
 docker-compose up -d

@@ -5,12 +5,16 @@
 
 set -e
 
-PROJECT_DIR="/opt/anomaly-vpn"
-BACKUP_DIR="${PROJECT_DIR}/backups"
+# Определяем директорию проекта автоматически
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
+BACKUP_DIR="$PROJECT_DIR/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 
 echo "💾 Создание резервной копии Anomaly Connect"
 echo "============================================"
+echo ""
+echo "Директория проекта: $PROJECT_DIR"
 echo ""
 
 # Create backup directory
@@ -18,7 +22,12 @@ mkdir -p "$BACKUP_DIR"
 
 # Backup PostgreSQL database
 echo "📦 Резервное копирование базы данных..."
-docker-compose exec -T db pg_dump -U anomaly anomaly > "$BACKUP_DIR/db_$DATE.sql"
+cd "$PROJECT_DIR"
+DB_NAME=${DB_NAME:-anomaly}
+DB_USER=${DB_USER:-anomaly}
+DB_PASSWORD=${DB_PASSWORD:-change_me}
+
+PGPASSWORD=$DB_PASSWORD docker-compose exec -T db pg_dump -U $DB_USER $DB_NAME > "$BACKUP_DIR/db_$DATE.sql"
 
 # Compress database backup
 gzip "$BACKUP_DIR/db_$DATE.sql"
@@ -50,4 +59,3 @@ ls -lh "$BACKUP_DIR" | tail -5
 echo ""
 echo "✅ Резервное копирование завершено!"
 echo "📁 Директория: $BACKUP_DIR"
-

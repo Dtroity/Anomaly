@@ -5,18 +5,25 @@
 
 set -e
 
+# Определяем директорию проекта автоматически
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
+BACKUP_SCRIPT="$PROJECT_DIR/backup.sh"
+
 echo "⏰ Настройка автоматических задач"
 echo "=================================="
 echo ""
-
-PROJECT_DIR="/opt/anomaly-vpn"
-BACKUP_SCRIPT="$PROJECT_DIR/backup.sh"
+echo "Директория проекта: $PROJECT_DIR"
+echo ""
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then 
     echo "❌ Пожалуйста, запустите от root (используйте sudo)"
     exit 1
 fi
+
+# Create logs directory
+mkdir -p "$PROJECT_DIR/logs"
 
 # Add backup cron job (daily at 3:00 AM)
 echo "📦 Настройка ежедневного бэкапа (3:00 AM)..."
@@ -36,4 +43,3 @@ echo ""
 echo "📋 Текущие задачи cron:"
 crontab -l
 echo ""
-

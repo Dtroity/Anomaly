@@ -1,52 +1,95 @@
-# Быстрый старт Anomaly VPN
+# ⚡ Быстрый старт - Anomaly Connect
 
-## 🚀 Установка за 3 шага
+## 🎯 Краткая инструкция
 
-### Шаг 1: VPS #2 - Установка Marzban
+### 1️⃣ Настройка DNS (СНАЧАЛА!)
 
-```bash
-# На VPS #2 (VPN Node)
-cd /opt
-git clone <repository-url> anomaly-vpn
-cd anomaly-vpn
-sudo bash marzban-setup.sh
+В панели Timeweb Cloud создайте 3 A записи:
 
-# Настройте пароль в /opt/marzban/.env
-sudo nano /opt/marzban/.env
-sudo systemctl restart marzban
-```
+| Тип | Имя | IP | TTL |
+|-----|-----|----|-----|
+| A | @ | 72.56.79.212 | 600 |
+| A | api | 72.56.79.212 | 600 |
+| A | panel | 72.56.79.212 | 600 |
 
-### Шаг 2: VPS #1 - Установка бота
+**Подождите 10-30 минут** для распространения DNS.
 
-```bash
-# На VPS #1 (Control Plane)
-cd /opt
-git clone <repository-url> anomaly-vpn
-cd anomaly-vpn
+📖 **Подробнее:** `docs/DNS_SETUP.md`
 
-# Настройте .env
-cp .env.template .env
-sudo nano .env
-
-# Установите
-sudo bash install.sh
-```
-
-### Шаг 3: Проверка
+### 2️⃣ Настройка .env (ДО SSL!)
 
 ```bash
-# Проверьте статус
-systemctl status anomaly-bot
-systemctl status anomaly-api
+# Перейдите в директорию проекта
+cd /opt/Anomaly
 
-# Отправьте /start боту в Telegram
+# Скопируйте шаблон
+cp env.before-ssl.template .env
+
+# Отредактируйте
+nano .env
 ```
 
-## ✅ Готово!
+**Обязательно используйте HTTP:**
+```env
+APP_URL=http://api.anomaly-connect.online
+PANEL_URL=http://panel.anomaly-connect.online
+```
 
-Теперь ваш VPN-сервис работает. Все компоненты установлены **напрямую на VPS** через systemd.
+📖 **Подробнее:** см. `env.before-ssl.template`
+
+### 3️⃣ Запуск сервисов
+
+```bash
+cd /opt/Anomaly
+docker-compose up -d
+```
+
+### 4️⃣ Получение SSL (ПОСЛЕ DNS!)
+
+```bash
+cd /opt/Anomaly
+chmod +x setup-ssl.sh
+sudo ./setup-ssl.sh
+```
+
+### 5️⃣ Обновление .env (ПОСЛЕ SSL!)
+
+Измените на HTTPS:
+```env
+APP_URL=https://api.anomaly-connect.online
+PANEL_URL=https://panel.anomaly-connect.online
+```
+
+Перезапустите:
+```bash
+cd /opt/Anomaly
+docker-compose restart api bot
+```
+
+## ✅ Проверка
+
+```bash
+# Проверка DNS
+nslookup api.anomaly-connect.online
+
+# Проверка HTTP (до SSL)
+curl http://api.anomaly-connect.online
+
+# Проверка HTTPS (после SSL)
+curl https://api.anomaly-connect.online
+
+# Проверка статуса сервисов
+cd /opt/Anomaly
+docker-compose ps
+docker-compose logs -f
+```
+
+## 📚 Дополнительная документация
+
+- `docs/DNS_SETUP.md` - детальная настройка DNS
+- `docs/SSL_SETUP.md` - настройка SSL сертификатов
+- `docs/DEPLOYMENT_STEPS.md` - полная пошаговая инструкция
 
 ---
 
-📚 Подробная документация: `DEPLOYMENT.md` и `INSTALL_DIRECT.md`
-
+**Важно:** Следуйте порядку: DNS → .env (HTTP) → Запуск → SSL → .env (HTTPS)

@@ -36,20 +36,29 @@ echo "🐳 Настройка Docker..."
 systemctl start docker
 systemctl enable docker
 
-# Create project directory
-PROJECT_DIR="/opt/anomaly-vpn"
-echo "📁 Создание директории проекта: $PROJECT_DIR"
-mkdir -p $PROJECT_DIR
-cd $PROJECT_DIR
-
-# Get script directory
+# Get script directory (если скрипт запущен из репозитория)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Copy project files if not already there
-if [ ! -f "$PROJECT_DIR/docker-compose.yml" ]; then
-    echo "📥 Копирование файлов проекта..."
-    if [ -d "$SCRIPT_DIR" ]; then
-        cp -r "$SCRIPT_DIR"/* "$PROJECT_DIR/" 2>/dev/null || true
+# Определяем директорию проекта
+# Если скрипт запущен из /opt/Anomaly, используем его
+# Иначе создаем /opt/Anomaly
+if [[ "$SCRIPT_DIR" == *"Anomaly"* ]] && [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
+    PROJECT_DIR="$SCRIPT_DIR"
+    echo "📁 Используется директория проекта: $PROJECT_DIR"
+    cd "$PROJECT_DIR"
+else
+    PROJECT_DIR="/opt/Anomaly"
+    echo "📁 Создание директории проекта: $PROJECT_DIR"
+    mkdir -p $PROJECT_DIR
+    cd $PROJECT_DIR
+    
+    # Если репозиторий еще не клонирован
+    if [ ! -f "$PROJECT_DIR/docker-compose.yml" ]; then
+        echo "📥 Клонирование репозитория..."
+        git clone https://github.com/Dtroity/Anomaly.git "$PROJECT_DIR" || {
+            echo "❌ Ошибка клонирования. Убедитесь, что репозиторий доступен."
+            exit 1
+        }
     fi
 fi
 
