@@ -42,10 +42,24 @@ docker run --rm \
 
 # Копировать сертификаты в volume
 echo "📋 Копирование сертификатов..."
+
+# Сначала проверить, есть ли сертификаты в nginx/ssl (уже скопированы)
+if [ -f nginx/ssl/fullchain.pem ] && [ -f nginx/ssl/privkey.pem ]; then
+    echo "✅ Используем сертификаты из nginx/ssl"
+    CERT_SOURCE="nginx/ssl"
+elif [ -f "$CERT_PATH/fullchain.pem" ] && [ -f "$CERT_PATH/privkey.pem" ]; then
+    echo "✅ Используем сертификаты из $CERT_PATH"
+    CERT_SOURCE="$CERT_PATH"
+else
+    echo "❌ Сертификаты не найдены ни в nginx/ssl, ни в $CERT_PATH"
+    exit 1
+fi
+
+# Копировать сертификаты в volume
 docker run --rm \
   -v anomaly_marzban_data:/data \
-  -v "$CERT_PATH:/certs:ro" \
-  alpine sh -c 'if [ -f /certs/fullchain.pem ] && [ -f /certs/privkey.pem ]; then cp /certs/fullchain.pem /data/ssl/cert.pem && cp /certs/privkey.pem /data/ssl/key.pem && chmod 644 /data/ssl/cert.pem && chmod 600 /data/ssl/key.pem && echo "Сертификаты скопированы"; else echo "Ошибка: сертификаты не найдены в /certs"; exit 1; fi'
+  -v "$(pwd)/$CERT_SOURCE:/certs:ro" \
+  alpine sh -c 'cp /certs/fullchain.pem /data/ssl/cert.pem && cp /certs/privkey.pem /data/ssl/key.pem && chmod 644 /data/ssl/cert.pem && chmod 600 /data/ssl/key.pem && ls -la /data/ssl/'
 
 echo "✅ Сертификаты скопированы в volume Marzban"
 echo ""
