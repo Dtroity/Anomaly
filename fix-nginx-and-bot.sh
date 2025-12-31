@@ -31,6 +31,9 @@ if [ -f panel.conf ]; then
     mv panel.conf panel-ssl.conf.bak 2>/dev/null || true
 fi
 
+# Удалить все SSL конфигурации временно
+rm -f default.conf main.conf panel.conf 2>/dev/null || true
+
 # Использовать HTTP конфигурацию
 if [ -f default-http-only.conf ]; then
     cp default-http-only.conf default.conf
@@ -97,9 +100,9 @@ fi
 
 cd ../..
 
-# 4. Запустить Nginx
+# 4. Запустить только Nginx (без пересоздания других контейнеров)
 echo "🚀 Запуск Nginx..."
-docker-compose up -d nginx
+docker-compose up -d --no-deps nginx
 
 # 5. Проверить логи бота
 echo ""
