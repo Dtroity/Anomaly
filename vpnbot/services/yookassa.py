@@ -71,7 +71,7 @@ class YooKassaService:
                 "amount": float(payment.amount.value),
                 "currency": payment.amount.currency,
                 "paid": payment.paid,
-                "metadata": payment.metadata
+                "metadata": payment.extra_data
             }
         except Exception as e:
             logger.error(f"Error getting YooKassa payment {payment_id}: {e}")

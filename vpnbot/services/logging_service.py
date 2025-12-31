@@ -31,7 +31,7 @@ class LoggingService:
             level="INFO",
             message=f"Payment {action}: {payment.payment_id} - {payment.amount} {payment.currency}",
             user_id=payment.user_id,
-            metadata=json.dumps({
+            extra_data=json.dumps({
                 "payment_id": payment.id,
                 "payment_method": payment.payment_method.value,
                 "status": payment.status.value,
@@ -62,7 +62,7 @@ class LoggingService:
             level=level,
             message=f"API {method} {endpoint} - {status_code}",
             user_id=user_id,
-            metadata=json.dumps({
+            extra_data=json.dumps({
                 "endpoint": endpoint,
                 "method": method,
                 "status_code": status_code,
@@ -84,7 +84,7 @@ class LoggingService:
             level="INFO",
             message=f"User {action}: {user.telegram_id}",
             user_id=user.id,
-            metadata=json.dumps({
+            extra_data=json.dumps({
                 "telegram_id": user.telegram_id,
                 "username": user.username,
                 "action": action,
@@ -105,7 +105,7 @@ class LoggingService:
             log_type="node",
             level="INFO",
             message=f"Node {event}: {node_id}",
-            metadata=json.dumps({
+            extra_data=json.dumps({
                 "node_id": node_id,
                 "event": event,
                 **(metadata or {})
@@ -127,7 +127,7 @@ class LoggingService:
             level="ERROR",
             message=message,
             user_id=user_id,
-            metadata=json.dumps(metadata or {})
+            extra_data=json.dumps(metadata or {})
         )
         self.db.add(log)
         self.db.commit()

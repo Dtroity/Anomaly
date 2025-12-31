@@ -103,7 +103,7 @@ class Payment(Base):
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now(), nullable=False)
     completed_at = Column(DateTime, nullable=True)
-    metadata = Column(Text, nullable=True)  # JSON string for additional data
+    extra_data = Column(Text, nullable=True)  # JSON string for additional data (renamed from metadata to avoid SQLAlchemy conflict)
     
     def __repr__(self):
         return f"<Payment(id={self.id}, user_id={self.user_id}, status={self.status})>"
