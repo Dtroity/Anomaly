@@ -22,11 +22,12 @@ echo ""
 
 # 2. Проверить, есть ли уже администраторы
 echo "📋 Проверка существующих администраторов..."
-EXISTING_ADMINS=$(docker-compose exec -T marzban marzban cli admin list 2>/dev/null | grep -v "Username" | grep -v "^$" | wc -l || echo "0")
+# Используем Python напрямую для выполнения CLI команд
+EXISTING_ADMINS=$(docker-compose exec -T marzban python -m cli.admin list 2>/dev/null | grep -v "Username" | grep -v "^$" | wc -l || echo "0")
 
 if [ "$EXISTING_ADMINS" -gt 0 ]; then
     echo "⚠️  Найдены существующие администраторы:"
-    docker-compose exec marzban marzban cli admin list
+    docker-compose exec marzban python -m cli.admin list
     echo ""
     read -p "Создать еще одного администратора? (y/n): " -n 1 -r
     echo ""
@@ -61,7 +62,7 @@ fi
 
 read -p "Сделать супер-администратором (sudo)? (y/n, по умолчанию: y): " -n 1 -r
 echo ""
-IS_SUDO="--sudo"
+IS_SUDO="--is-sudo"
 if [[ ! $REPLY =~ ^[Yy]$ ]] && [ -n "$REPLY" ]; then
     IS_SUDO=""
 fi
@@ -70,10 +71,8 @@ fi
 echo ""
 echo "🔄 Создание администратора..."
 
-# Используем переменную окружения для пароля (неинтерактивный режим)
-export MARZBAN_ADMIN_PASSWORD="$PASSWORD"
-
-if docker-compose exec -T -e MARZBAN_ADMIN_PASSWORD="$PASSWORD" marzban marzban cli admin create \
+# Используем Python напрямую с передачей пароля через переменную окружения
+if docker-compose exec -T -e MARZBAN_ADMIN_PASSWORD="$PASSWORD" marzban python -m cli.admin create \
     --username "${USERNAME:-root}" \
     $IS_SUDO \
     --password "$PASSWORD" 2>&1; then
@@ -91,7 +90,6 @@ else
     echo "   Возможно, администратор с таким именем уже существует"
     echo ""
     echo "💡 Попробуйте создать администратора вручную:"
-    echo "   docker-compose exec marzban marzban cli admin create --sudo"
+    echo "   docker-compose exec marzban python -m cli.admin create --is-sudo"
     exit 1
 fi
-
