@@ -16,6 +16,7 @@ services:
     volumes:
       - marzban_data:/var/lib/marzban
       - marzban_xray:/usr/local/share/xray
+      - ./nginx/ssl:/var/lib/marzban/ssl:ro
     ports:
       - "62050:62050"  # Marzban панель (только локально через Nginx)
     networks:
