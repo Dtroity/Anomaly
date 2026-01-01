@@ -211,7 +211,21 @@ class MarzbanService:
     
     def get_system_stats_sync(self) -> Dict:
         """Synchronous wrapper for get_system_stats"""
-        return asyncio.run(self.get_system_stats())
+        try:
+            # Try to get existing event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If loop is running, we can't use asyncio.run()
+                # Use a thread-safe approach with concurrent.futures
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, self.get_system_stats())
+                    return future.result(timeout=10)
+            else:
+                return loop.run_until_complete(self.get_system_stats())
+        except RuntimeError:
+            # No event loop, create new one
+            return asyncio.run(self.get_system_stats())
     
     async def get_subscription_url(self, username: str) -> Optional[str]:
         """Get subscription URL for user"""
