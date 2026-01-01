@@ -71,7 +71,7 @@ class NodeService:
                     username=db_node.username,
                     password=db_node.password
                 )
-                stats = marzban.get_system_stats()
+                stats = marzban.get_system_stats_sync()
                 
                 nodes.append({
                     "id": db_node.node_id,
@@ -97,7 +97,7 @@ class NodeService:
                         username=node_config["username"],
                         password=node_config["password"]
                     )
-                    stats = marzban.get_system_stats()
+                    stats = marzban.get_system_stats_sync()
                     
                     nodes.append({
                         "id": node_config["id"],
