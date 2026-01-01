@@ -29,8 +29,11 @@ fi
 
 if [ -z "$BOT_CONTAINER" ]; then
     echo "❌ Контейнер бота не найден"
-    echo "  Попытка запустить через docker-compose..."
-    docker-compose up -d bot
+    echo "  Удаление старых поврежденных контейнеров..."
+    docker-compose rm -f bot api 2>/dev/null || true
+    docker ps -a | grep -E "anomaly-bot|anomaly-api" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    echo "  Запуск бота через docker-compose (без зависимостей)..."
+    docker-compose up -d --no-deps bot
     sleep 10
 else
     echo "  Найден контейнер: $BOT_CONTAINER"
@@ -40,8 +43,9 @@ else
         echo "  ✅ Контейнер запущен, перезапускаю..."
         docker restart "$BOT_CONTAINER"
     else
-        echo "  ⚠️  Контейнер остановлен, запускаю..."
-        docker start "$BOT_CONTAINER" || docker-compose up -d bot
+        echo "  ⚠️  Контейнер остановлен, удаляю и пересоздаю..."
+        docker rm -f "$BOT_CONTAINER" 2>/dev/null || true
+        docker-compose up -d --no-deps bot
     fi
 fi
 
@@ -143,4 +147,5 @@ echo "   1. Откройте @Anomaly_connectBot"
 echo "   2. Отправьте /start"
 echo "   3. Бот должен ответить"
 echo ""
+
 
