@@ -16,6 +16,7 @@ from models import User, UserRole, SubscriptionPlan
 from services.marzban import MarzbanService
 from services.nodes import NodeService
 from services.payment_provider import PaymentService, PaymentProviderType
+from services.telegram_pay import TelegramPayService
 from services.trial_service import TrialService
 from services.logging_service import LoggingService
 from config import settings
