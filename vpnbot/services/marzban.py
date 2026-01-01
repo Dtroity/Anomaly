@@ -4,6 +4,8 @@ Marzban API integration service
 import logging
 import aiohttp
 import asyncio
+import threading
+import concurrent.futures
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 
@@ -215,12 +217,32 @@ class MarzbanService:
             # Try to get existing event loop
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                # If loop is running, we can't use asyncio.run()
-                # Use a thread-safe approach with concurrent.futures
+                # If loop is running, create a new event loop in a thread
                 import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self.get_system_stats())
-                    return future.result(timeout=10)
+                import threading
+                
+                result = None
+                exception = None
+                
+                def run_in_thread():
+                    nonlocal result, exception
+                    try:
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        result = new_loop.run_until_complete(self.get_system_stats())
+                        new_loop.close()
+                    except Exception as e:
+                        exception = e
+                
+                thread = threading.Thread(target=run_in_thread)
+                thread.start()
+                thread.join(timeout=10)
+                
+                if exception:
+                    raise exception
+                if result is None:
+                    raise TimeoutError("Timeout waiting for system stats")
+                return result
             else:
                 return loop.run_until_complete(self.get_system_stats())
         except RuntimeError:
