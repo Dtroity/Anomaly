@@ -12,12 +12,12 @@ services:
     network_mode: host
     environment:
       # SSL сертификат клиента для подключения к Control Server
-      SSL_CLIENT_CERT_FILE: "/var/lib/marzban-node/ssl_client_cert.pem"
+      SSL_CLIENT_CERT_FILE: "/var/lib/marzban-node/ssl/certificate.pem"
       # Использовать REST API протокол (для Marzban 0.4.4+)
       SERVICE_PROTOCOL: "rest"
     volumes:
       - ./node-data:/var/lib/marzban-node
-      - ./node-certs/ssl_client_cert.pem:/var/lib/marzban-node/ssl_client_cert.pem:ro
+      - /var/lib/marzban-node/ssl:/var/lib/marzban-node/ssl:ro
     # network_mode: host позволяет ноде использовать порты хоста напрямую
     # Порты: 443 (VLESS Reality), 80 (Fallback), 62050 (API для Control Server)
     # Нода подключается к Control Server инициативно (outbound)
