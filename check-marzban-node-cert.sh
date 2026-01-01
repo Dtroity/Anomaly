@@ -19,12 +19,13 @@ echo "✅ Marzban запущен"
 echo ""
 
 # 2. Получить сертификат ноды из базы данных
-echo "📋 Сертификат ноды в базе данных:"
+echo "📋 Информация о ноде в базе данных:"
 docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
 import sys
 sys.path.insert(0, '/code')
 from app.db import GetDB
 from app.db.models import Node
+from sqlalchemy import inspect
 
 with GetDB() as db:
     node = db.query(Node).filter(Node.name == "Node 1").first()
@@ -35,20 +36,52 @@ with GetDB() as db:
         print(f"  API порт: {node.api_port}")
         print(f"  Статус: {node.status}")
         print(f"  Сообщение: {node.message}")
-        print(f"  SSL сертификат (первые 200 символов):")
-        if hasattr(node, 'ssl_cert') and node.ssl_cert:
-            cert_preview = node.ssl_cert[:200] if isinstance(node.ssl_cert, str) else node.ssl_cert.decode()[:200]
-            print(f"    {cert_preview}...")
+        
+        # Проверить все атрибуты ноды
+        inspector = inspect(Node)
+        columns = [col.name for col in inspector.columns]
+        print(f"\n  Доступные поля в таблице nodes: {', '.join(columns)}")
+        
+        # Попробовать получить ssl_cert и ssl_key разными способами
+        ssl_cert = None
+        ssl_key = None
+        
+        if hasattr(node, 'ssl_cert'):
+            ssl_cert = getattr(node, 'ssl_cert', None)
+        if hasattr(node, 'ssl_key'):
+            ssl_key = getattr(node, 'ssl_key', None)
+        
+        # Если не найдено, попробовать через словарь
+        if not ssl_cert:
+            node_dict = {col.name: getattr(node, col.name) for col in inspector.columns}
+            ssl_cert = node_dict.get('ssl_cert')
+            ssl_key = node_dict.get('ssl_key')
+        
+        print(f"\n  SSL сертификат:")
+        if ssl_cert:
+            cert_str = ssl_cert.decode() if isinstance(ssl_cert, bytes) else str(ssl_cert)
+            cert_preview = cert_str[:200] if len(cert_str) > 200 else cert_str
+            print(f"    Найден (длина: {len(cert_str)} символов)")
+            print(f"    Первые 200 символов: {cert_preview}...")
         else:
             print("    ⚠️  Сертификат не найден в базе данных")
-        print(f"  SSL ключ (первые 200 символов):")
-        if hasattr(node, 'ssl_key') and node.ssl_key:
-            key_preview = node.ssl_key[:200] if isinstance(node.ssl_key, str) else node.ssl_key.decode()[:200]
-            print(f"    {key_preview}...")
+        
+        print(f"\n  SSL ключ:")
+        if ssl_key:
+            key_str = ssl_key.decode() if isinstance(ssl_key, bytes) else str(ssl_key)
+            key_preview = key_str[:200] if len(key_str) > 200 else key_str
+            print(f"    Найден (длина: {len(key_str)} символов)")
+            print(f"    Первые 200 символов: {key_preview}...")
         else:
             print("    ⚠️  Ключ не найден в базе данных")
     else:
         print("  ❌ Нода не найдена")
+        # Показать все ноды
+        all_nodes = db.query(Node).all()
+        if all_nodes:
+            print(f"\n  Найдено нод: {len(all_nodes)}")
+            for n in all_nodes:
+                print(f"    - {n.name} ({n.address}:{n.port})")
 PYTHON_SCRIPT
 
 echo ""
