@@ -20,7 +20,16 @@ echo "🧹 Удаление старых поврежденных контейн
 docker ps -a --format "{{.ID}} {{.Names}}" | grep -E "bot|api" | grep -v "anomaly-db\|anomaly-marzban\|anomaly-nginx" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
 # Удалить контейнеры с именами, содержащими "anomaly-bot" или "anomaly-api"
 docker ps -a --format "{{.ID}} {{.Names}}" | grep -E "anomaly-bot|anomaly-api|4b7cffc687de" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+# Удалить контейнер api по ID (если он есть)
+docker ps -a --format "{{.ID}} {{.Names}}" | grep "4b7cffc687de" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+# Удалить все контейнеры с поврежденной конфигурацией (по частичному ID)
+docker ps -a --format "{{.ID}}" | grep "4b7cffc687de" | xargs -r docker rm -f 2>/dev/null || true
 echo "  ✅ Старые контейнеры удалены"
+echo ""
+
+# 2.1. Убедиться, что контейнер api удален из docker-compose
+echo "🧹 Очистка docker-compose от поврежденных контейнеров..."
+docker-compose rm -f api bot 2>/dev/null || true
 echo ""
 
 # 3. Проверить статус контейнеров
