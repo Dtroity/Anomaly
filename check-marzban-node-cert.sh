@@ -23,22 +23,29 @@ echo "📋 Сертификат для подключения к нодам (и�
 docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
 import sys
 sys.path.insert(0, '/code')
-from app.db import GetDB
-from app.db.models import TLS
-
-with GetDB() as db:
-    tls = db.query(TLS).first()
-    if tls:
-        print(f"  Сертификат (первые 200 символов):")
-        cert_preview = tls.certificate[:200] if len(tls.certificate) > 200 else tls.certificate
-        print(f"    {cert_preview}...")
-        print(f"  Ключ (первые 200 символов):")
-        key_preview = tls.key[:200] if len(tls.key) > 200 else tls.key
-        print(f"    {key_preview}...")
-        print(f"\n  💡 Этот сертификат используется Marzban для подключения ко всем нодам")
-        print(f"  💡 Он должен быть установлен на ноде как SSL_CLIENT_CERT_FILE")
-    else:
-        print("  ❌ Сертификат не найден в таблице TLS")
+try:
+    from app.db import GetDB
+    from app.db.models import TLS
+    
+    with GetDB() as db:
+        tls = db.query(TLS).first()
+        if tls:
+            print(f"  ✅ Сертификат найден в таблице TLS")
+            print(f"  Сертификат (первые 200 символов):")
+            cert_preview = tls.certificate[:200] if len(tls.certificate) > 200 else tls.certificate
+            print(f"    {cert_preview}...")
+            print(f"  Ключ (первые 200 символов):")
+            key_preview = tls.key[:200] if len(tls.key) > 200 else tls.key
+            print(f"    {key_preview}...")
+            print(f"\n  💡 Этот сертификат используется Marzban для подключения ко всем нодам")
+            print(f"  💡 Он должен быть установлен на ноде как SSL_CLIENT_CERT_FILE")
+        else:
+            print("  ❌ Сертификат не найден в таблице TLS")
+            print("  💡 Таблица TLS пуста. Нужно сгенерировать сертификат в панели Marzban")
+except Exception as e:
+    print(f"  ⚠️  Ошибка при получении сертификата: {e}")
+    import traceback
+    traceback.print_exc()
 PYTHON_SCRIPT
 
 echo ""
@@ -48,13 +55,14 @@ echo "📋 Информация о ноде в базе данных:"
 docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
 import sys
 sys.path.insert(0, '/code')
-from app.db import GetDB
-from app.db.models import Node
-from sqlalchemy import inspect
-
-with GetDB() as db:
-    node = db.query(Node).filter(Node.name == "Node 1").first()
-    if node:
+try:
+    from app.db import GetDB
+    from app.db.models import Node
+    from sqlalchemy import inspect
+    
+    with GetDB() as db:
+        node = db.query(Node).filter(Node.name == "Node 1").first()
+        if node:
         print(f"  Имя: {node.name}")
         print(f"  Адрес: {node.address}")
         print(f"  Порт: {node.port}")
@@ -66,47 +74,20 @@ with GetDB() as db:
         inspector = inspect(Node)
         columns = [col.name for col in inspector.columns]
         print(f"\n  Доступные поля в таблице nodes: {', '.join(columns)}")
-        
-        # Попробовать получить ssl_cert и ssl_key разными способами
-        ssl_cert = None
-        ssl_key = None
-        
-        if hasattr(node, 'ssl_cert'):
-            ssl_cert = getattr(node, 'ssl_cert', None)
-        if hasattr(node, 'ssl_key'):
-            ssl_key = getattr(node, 'ssl_key', None)
-        
-        # Если не найдено, попробовать через словарь
-        if not ssl_cert:
-            node_dict = {col.name: getattr(node, col.name) for col in inspector.columns}
-            ssl_cert = node_dict.get('ssl_cert')
-            ssl_key = node_dict.get('ssl_key')
-        
-        print(f"\n  SSL сертификат:")
-        if ssl_cert:
-            cert_str = ssl_cert.decode() if isinstance(ssl_cert, bytes) else str(ssl_cert)
-            cert_preview = cert_str[:200] if len(cert_str) > 200 else cert_str
-            print(f"    Найден (длина: {len(cert_str)} символов)")
-            print(f"    Первые 200 символов: {cert_preview}...")
-        else:
-            print("    ⚠️  Сертификат не найден в базе данных")
-        
-        print(f"\n  SSL ключ:")
-        if ssl_key:
-            key_str = ssl_key.decode() if isinstance(ssl_key, bytes) else str(ssl_key)
-            key_preview = key_str[:200] if len(key_str) > 200 else key_str
-            print(f"    Найден (длина: {len(key_str)} символов)")
-            print(f"    Первые 200 символов: {key_preview}...")
-        else:
-            print("    ⚠️  Ключ не найден в базе данных")
     else:
-        print("  ❌ Нода не найдена")
+        print("  ❌ Нода 'Node 1' не найдена")
         # Показать все ноды
         all_nodes = db.query(Node).all()
         if all_nodes:
             print(f"\n  Найдено нод: {len(all_nodes)}")
             for n in all_nodes:
                 print(f"    - {n.name} ({n.address}:{n.port})")
+        else:
+            print("  ⚠️  Ноды не найдены в базе данных")
+except Exception as e:
+    print(f"  ⚠️  Ошибка при получении информации о ноде: {e}")
+    import traceback
+    traceback.print_exc()
 PYTHON_SCRIPT
 
 echo ""
