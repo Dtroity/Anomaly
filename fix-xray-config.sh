@@ -14,16 +14,41 @@ echo "✅ Marzban запущен"
 # Получение токена администратора
 echo ""
 echo "🔑 Получение токена администратора..."
-TOKEN=$(docker exec anomaly-marzban marzban-cli admin login --username Admin 2>/dev/null | grep -oP 'Token: \K[^\s]+' || echo "")
+ADMIN_USER="Admin"
+
+# Попробовать найти пароль в разных местах
+ADMIN_PASS=$(grep -E "MARZBAN_ADMIN_PASSWORD|SUDO_PASSWORD|ADMIN_PASSWORD" .env 2>/dev/null | cut -d'=' -f2 | head -1)
+
+# Если не найден, попробовать получить из переменных окружения контейнера
+if [ -z "$ADMIN_PASS" ]; then
+    ADMIN_PASS=$(docker exec anomaly-marzban env 2>/dev/null | grep -E "SUDO_PASSWORD|MARZBAN_ADMIN_PASSWORD" | cut -d'=' -f2 | head -1)
+fi
+
+# Если все еще не найден, попросить ввести
+if [ -z "$ADMIN_PASS" ]; then
+    echo "  ⚠️  Пароль администратора не найден автоматически"
+    echo "  💡 Попробуйте получить токен через панель или введите пароль:"
+    read -sp "  Пароль администратора: " ADMIN_PASS
+    echo ""
+    if [ -z "$ADMIN_PASS" ]; then
+        echo "  ❌ Пароль не введен"
+        exit 1
+    fi
+fi
+
+TOKEN_RESPONSE=$(curl -s -k -X POST "https://localhost:62050/api/admin/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "username=${ADMIN_USER}&password=${ADMIN_PASS}" 2>/dev/null)
+
+TOKEN=$(echo "$TOKEN_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token', ''))" 2>/dev/null)
 
 if [ -z "$TOKEN" ]; then
-    echo "⚠️ Не удалось получить токен автоматически"
-    echo "💡 Попробуйте вручную:"
-    echo "   docker exec anomaly-marzban marzban-cli admin login --username Admin"
+    echo "  ❌ Не удалось получить токен"
+    echo "  Ответ: $TOKEN_RESPONSE"
     exit 1
 fi
 
-echo "✅ Токен получен"
+echo "  ✅ Токен получен"
 
 # Создание полной конфигурации
 echo ""
