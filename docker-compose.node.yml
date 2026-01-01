@@ -1,37 +1,24 @@
 version: '3.8'
 
 # Anomaly VPN - Node (VPS #2)
-# Содержит только: Marzban Node + Xray
-# Подключается к Control Server
+# Использует официальный образ marzban-node от Gozargah
 
 services:
   # Marzban Node - подключается к Control Server
   marzban-node:
-    build:
-      context: ./Marzban-0.8.4
-      dockerfile: Dockerfile
+    image: gozargah/marzban-node:latest
     container_name: anomaly-node
     restart: unless-stopped
-    env_file:
-      - .env.node
+    network_mode: host
+    environment:
+      # SSL сертификат клиента для подключения к Control Server
+      SSL_CLIENT_CERT_FILE: "/var/lib/marzban-node/ssl_client_cert.pem"
+      # Использовать REST API протокол (для Marzban 0.4.4+)
+      SERVICE_PROTOCOL: "rest"
     volumes:
-      - node_data:/var/lib/marzban
-      - node_xray:/usr/local/share/xray
-      - ./node-certs:/var/lib/marzban/ssl:ro  # SSL сертификаты для ноды
-    ports:
-      - "443:443"    # VLESS Reality
-      - "80:80"      # Fallback
-      - "62050:62050" # Marzban Node API (для подключения Control Server)
-    networks:
-      - node-network
-    # Node подключается к Control Server инициативно (outbound)
+      - ./node-data:/var/lib/marzban-node
+      - ./node-certs/ssl_client_cert.pem:/var/lib/marzban-node/ssl_client_cert.pem:ro
+    # network_mode: host позволяет ноде использовать порты хоста напрямую
+    # Порты: 443 (VLESS Reality), 80 (Fallback), 62050 (API для Control Server)
+    # Нода подключается к Control Server инициативно (outbound)
     # Не требует входящих соединений для управления
-
-volumes:
-  node_data:
-  node_xray:
-
-networks:
-  node-network:
-    driver: bridge
-
