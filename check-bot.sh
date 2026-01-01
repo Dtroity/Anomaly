@@ -45,7 +45,7 @@ echo ""
 echo "🌐 Проверка доступности бота через Telegram API:"
 if [ -n "$BOT_TOKEN" ]; then
     BOT_INFO=$(curl -s "https://api.telegram.org/bot${BOT_TOKEN}/getMe" 2>/dev/null || echo "")
-    if echo "$BOT_INFO" | grep -q '"ok":true; then
+    if echo "$BOT_INFO" | grep -q '"ok":true'; then
         BOT_USERNAME=$(echo "$BOT_INFO" | grep -o '"username":"[^"]*' | cut -d'"' -f4)
         echo "  ✅ Бот доступен: @$BOT_USERNAME"
     else
@@ -53,6 +53,8 @@ if [ -n "$BOT_TOKEN" ]; then
         echo "  Ответ API: $BOT_INFO"
         echo "  Проверьте правильность BOT_TOKEN"
     fi
+else
+    echo "  ⚠️  BOT_TOKEN пустой, пропускаю проверку API"
 fi
 echo ""
 
