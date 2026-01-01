@@ -2,8 +2,6 @@
 
 # Исправленный скрипт для перезапуска бота
 
-set -e
-
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
@@ -16,12 +14,21 @@ MARZBAN_URL=$(grep "^MARZBAN_API_URL=" .env | cut -d'=' -f2 | tr -d '"' | tr -d 
 echo "📋 MARZBAN_API_URL в .env: $MARZBAN_URL"
 echo ""
 
-# 2. Проверить статус контейнеров
-echo "📊 Проверка контейнеров:"
-docker-compose ps | grep -E "bot|NAME" || docker ps | grep -E "bot|CONTAINER"
+# 2. Удалить все поврежденные контейнеры напрямую через docker
+echo "🧹 Удаление старых поврежденных контейнеров..."
+# Удалить контейнеры бота и api напрямую через docker
+docker ps -a --format "{{.ID}} {{.Names}}" | grep -E "bot|api" | grep -v "anomaly-db\|anomaly-marzban\|anomaly-nginx" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+# Удалить контейнеры с именами, содержащими "anomaly-bot" или "anomaly-api"
+docker ps -a --format "{{.ID}} {{.Names}}" | grep -E "anomaly-bot|anomaly-api|4b7cffc687de" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+echo "  ✅ Старые контейнеры удалены"
 echo ""
 
-# 3. Найти контейнер бота
+# 3. Проверить статус контейнеров
+echo "📊 Проверка контейнеров:"
+docker-compose ps 2>/dev/null | head -n 10 || docker ps | head -n 10
+echo ""
+
+# 4. Найти контейнер бота
 BOT_CONTAINER=$(docker ps -a --filter "name=bot" --format "{{.Names}}" | head -n 1)
 if [ -z "$BOT_CONTAINER" ]; then
     BOT_CONTAINER=$(docker ps -a --filter "name=anomaly" --format "{{.Names}}" | grep -i bot | head -n 1)
@@ -29,11 +36,8 @@ fi
 
 if [ -z "$BOT_CONTAINER" ]; then
     echo "❌ Контейнер бота не найден"
-    echo "  Удаление старых поврежденных контейнеров..."
-    docker-compose rm -f bot api 2>/dev/null || true
-    docker ps -a | grep -E "anomaly-bot|anomaly-api" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
     echo "  Запуск бота через docker-compose (без зависимостей)..."
-    docker-compose up -d --no-deps bot
+    docker-compose up -d --no-deps bot 2>&1 | grep -v "is up-to-date" || true
     sleep 10
 else
     echo "  Найден контейнер: $BOT_CONTAINER"
@@ -41,11 +45,11 @@ else
     # Проверить, запущен ли
     if docker ps --format "{{.Names}}" | grep -q "^${BOT_CONTAINER}$"; then
         echo "  ✅ Контейнер запущен, перезапускаю..."
-        docker restart "$BOT_CONTAINER"
+        docker restart "$BOT_CONTAINER" 2>/dev/null || docker-compose restart bot 2>/dev/null || true
     else
         echo "  ⚠️  Контейнер остановлен, удаляю и пересоздаю..."
         docker rm -f "$BOT_CONTAINER" 2>/dev/null || true
-        docker-compose up -d --no-deps bot
+        docker-compose up -d --no-deps bot 2>&1 | grep -v "is up-to-date" || true
     fi
 fi
 
