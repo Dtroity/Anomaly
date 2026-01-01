@@ -38,6 +38,7 @@ if ! docker exec anomaly-marzban test -f "$CERT_PATH" 2>/dev/null; then
     echo "💡 Проверьте путь к сертификатам в конфигурации"
 fi
 
+# Конфигурация основана на исходной, но дополнена необходимыми секциями
 FULL_CONFIG='{
   "log": {
     "loglevel": "warning"
@@ -46,7 +47,7 @@ FULL_CONFIG='{
     "rules": [
       {
         "inboundTag": [
-          "API_INBOUND"
+          "api"
         ],
         "outboundTag": "API",
         "type": "field"
@@ -55,9 +56,9 @@ FULL_CONFIG='{
   },
   "inbounds": [
     {
-      "tag": "API_INBOUND",
+      "tag": "api",
       "listen": "127.0.0.1",
-      "port": 8080,
+      "port": 0,
       "protocol": "dokodemo-door",
       "settings": {
         "address": "127.0.0.1"
@@ -87,16 +88,16 @@ FULL_CONFIG='{
   ],
   "outbounds": [
     {
-      "tag": "direct",
-      "protocol": "freedom"
+      "protocol": "freedom",
+      "tag": "DIRECT"
     },
     {
-      "tag": "blocked",
-      "protocol": "blackhole"
+      "protocol": "blackhole",
+      "tag": "blocked"
     },
     {
-      "tag": "API",
-      "protocol": "freedom"
+      "protocol": "freedom",
+      "tag": "API"
     }
   ],
   "api": {
