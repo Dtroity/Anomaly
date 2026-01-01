@@ -23,7 +23,12 @@ echo "🔑 Получение токена..."
 ADMIN_USER="Admin"
 
 # Попробовать найти пароль в разных местах
-ADMIN_PASS=$(grep -E "MARZBAN_ADMIN_PASSWORD|SUDO_PASSWORD|ADMIN_PASSWORD" .env 2>/dev/null | cut -d'=' -f2 | head -1)
+ADMIN_PASS=$(grep -E "MARZBAN_ADMIN_PASSWORD|SUDO_PASSWORD|ADMIN_PASSWORD" .env.marzban 2>/dev/null | cut -d'=' -f2 | head -1)
+
+# Если не найден в .env.marzban, попробовать .env
+if [ -z "$ADMIN_PASS" ]; then
+    ADMIN_PASS=$(grep -E "MARZBAN_ADMIN_PASSWORD|SUDO_PASSWORD|ADMIN_PASSWORD" .env 2>/dev/null | cut -d'=' -f2 | head -1)
+fi
 
 # Если не найден, попробовать получить из переменных окружения контейнера
 if [ -z "$ADMIN_PASS" ]; then
