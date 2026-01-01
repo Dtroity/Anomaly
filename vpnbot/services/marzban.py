@@ -58,11 +58,9 @@ class MarzbanService:
     ) -> Dict:
         """Make authenticated request to Marzban API"""
         token = await self._get_token()
-        # Marzban uses /api for system endpoints, /api/v1 for user endpoints
-        if endpoint.startswith("/system") or endpoint.startswith("/inbounds"):
-            url = f"{self.api_url}/api{endpoint}"
-        else:
-            url = f"{self.api_url}/api/v1{endpoint}"
+        # Marzban uses /api for all endpoints (system, user, etc.)
+        # No /api/v1 prefix needed
+        url = f"{self.api_url}/api{endpoint}"
         
         headers = {
             "Authorization": f"Bearer {token}",
