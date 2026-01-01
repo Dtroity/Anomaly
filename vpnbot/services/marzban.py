@@ -6,6 +6,7 @@ import aiohttp
 import asyncio
 import threading
 import concurrent.futures
+import uuid
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 
@@ -98,14 +99,24 @@ class MarzbanService:
         proxies: Optional[Dict] = None
     ) -> Dict:
         """Create new user in Marzban"""
-        payload = {
-            "username": username,
-            "proxies": proxies or {
+        # Generate UUID for vless proxy if not provided
+        if not proxies:
+            proxies = {
                 "vless": {
-                    "id": username,
+                    "id": str(uuid.uuid4()),
                     "flow": ""
                 }
             }
+        elif "vless" in proxies and "id" in proxies["vless"]:
+            # Ensure vless id is a valid UUID
+            try:
+                uuid.UUID(proxies["vless"]["id"])
+            except (ValueError, TypeError):
+                proxies["vless"]["id"] = str(uuid.uuid4())
+        
+        payload = {
+            "username": username,
+            "proxies": proxies
         }
         
         if data_limit:
