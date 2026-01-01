@@ -16,16 +16,19 @@ MARZBAN_URL=$(grep "^MARZBAN_API_URL=" .env | cut -d'=' -f2 | tr -d '"' | tr -d 
 echo "📋 MARZBAN_API_URL в .env: $MARZBAN_URL"
 echo ""
 
-# 2. Остановить и удалить контейнер бота (с принудительным удалением)
+# 2. Остановить и удалить контейнер бота напрямую через docker
 echo "⏸️  Остановка контейнера бота..."
-docker-compose stop bot 2>/dev/null || true
+docker stop anomaly-bot 2>/dev/null || true
 docker rm -f anomaly-bot 2>/dev/null || true
 echo "✅ Контейнер остановлен и удален"
 echo ""
 
-# 3. Пересоздать контейнер бота (без зависимостей)
+# 3. Пересоздать контейнер бота (используя docker-compose create и start)
 echo "🚀 Пересоздание контейнера бота..."
-docker-compose up -d --no-deps bot
+# Сначала создаем контейнер без запуска
+docker-compose create --no-deps bot 2>/dev/null || docker-compose up -d --no-deps --force-recreate bot
+# Затем запускаем
+docker-compose start bot 2>/dev/null || docker-compose up -d --no-deps bot
 echo "⏳ Ожидание запуска (10 секунд)..."
 sleep 10
 echo ""
