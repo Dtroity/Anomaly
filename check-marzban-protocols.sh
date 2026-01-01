@@ -21,12 +21,25 @@ echo ""
 # 2. Получить токен
 echo "🔑 Получение токена..."
 ADMIN_USER="Admin"
-ADMIN_PASS=$(grep MARZBAN_ADMIN_PASSWORD .env 2>/dev/null | cut -d'=' -f2)
 
+# Попробовать найти пароль в разных местах
+ADMIN_PASS=$(grep -E "MARZBAN_ADMIN_PASSWORD|SUDO_PASSWORD|ADMIN_PASSWORD" .env 2>/dev/null | cut -d'=' -f2 | head -1)
+
+# Если не найден, попробовать получить из переменных окружения контейнера
 if [ -z "$ADMIN_PASS" ]; then
-    echo "  ⚠️  Пароль администратора не найден в .env"
-    echo "  💡 Введите пароль вручную или проверьте .env"
-    exit 1
+    ADMIN_PASS=$(docker exec anomaly-marzban env 2>/dev/null | grep -E "SUDO_PASSWORD|MARZBAN_ADMIN_PASSWORD" | cut -d'=' -f2 | head -1)
+fi
+
+# Если все еще не найден, попросить ввести
+if [ -z "$ADMIN_PASS" ]; then
+    echo "  ⚠️  Пароль администратора не найден автоматически"
+    echo "  💡 Попробуйте получить токен через панель или введите пароль:"
+    read -sp "  Пароль администратора: " ADMIN_PASS
+    echo ""
+    if [ -z "$ADMIN_PASS" ]; then
+        echo "  ❌ Пароль не введен"
+        exit 1
+    fi
 fi
 
 TOKEN_RESPONSE=$(curl -s -k -X POST "https://localhost:62050/api/admin/token" \
