@@ -18,6 +18,7 @@ services:
     volumes:
       - ./node-data:/var/lib/marzban-node
       - /var/lib/marzban-node/ssl:/var/lib/marzban-node/ssl:ro
+      - ./node-certs:/var/lib/marzban-node/node-certs:ro
     # network_mode: host позволяет ноде использовать порты хоста напрямую
     # Порты: 443 (VLESS Reality), 80 (Fallback), 62050 (API для Control Server)
     # Нода подключается к Control Server инициативно (outbound)
