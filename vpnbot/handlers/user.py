@@ -200,8 +200,29 @@ async def callback_connect(callback: CallbackQuery):
                 await callback.answer("Ошибка получения ключа", show_alert=True)
         
         except Exception as e:
+            error_msg = str(e)
             logger.error(f"Error connecting user {user.telegram_id}: {e}")
-            await callback.answer("Ошибка подключения. Попробуйте позже.", show_alert=True)
+            
+            # Provide user-friendly error messages
+            if "No proxy protocols available" in error_msg or "Could not determine available protocols" in error_msg:
+                user_msg = (
+                    "❌ Протоколы VPN не настроены в панели Marzban.\n\n"
+                    "Пожалуйста, настройте inbounds:\n"
+                    "1. Откройте панель Marzban\n"
+                    "2. Перейдите в Settings → Inbounds\n"
+                    "3. Создайте или включите хотя бы один inbound\n"
+                    "(VMess, VLESS, Trojan или Shadowsocks)"
+                )
+            elif "Protocol" in error_msg and "disabled" in error_msg:
+                user_msg = (
+                    "❌ Выбранный протокол VPN отключен на сервере.\n\n"
+                    "Пожалуйста, настройте inbounds в панели Marzban:\n"
+                    "https://panel.anomaly-connect.online"
+                )
+            else:
+                user_msg = f"Ошибка подключения: {error_msg[:200]}"
+            
+            await callback.answer(user_msg, show_alert=True)
 
 
 @router.callback_query(F.data == "status")

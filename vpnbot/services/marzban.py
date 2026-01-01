@@ -135,13 +135,23 @@ class MarzbanService:
                         }
                     }
                 else:
-                    # If no protocols found, try creating user with empty proxies
-                    # Marzban will use default protocol
-                    proxies = {}
+                    # If no protocols found, raise error with helpful message
+                    logger.error("No proxy protocols available in Marzban")
+                    raise Exception(
+                        "No proxy protocols available. Please configure inbounds in Marzban panel: "
+                        "https://panel.anomaly-connect.online -> Settings -> Inbounds"
+                    )
             except Exception as e:
-                logger.warning(f"Could not get inbounds, trying empty proxies: {e}")
-                # If we can't get inbounds, try empty proxies (Marzban will use defaults)
-                proxies = {}
+                error_msg = str(e)
+                if "No proxy protocols available" in error_msg:
+                    raise
+                logger.warning(f"Could not get inbounds: {e}")
+                # If we can't get inbounds, raise error with helpful message
+                raise Exception(
+                    f"Could not determine available protocols: {error_msg}. "
+                    "Please configure inbounds in Marzban panel: "
+                    "https://panel.anomaly-connect.online -> Settings -> Inbounds"
+                )
         elif "vless" in proxies and "id" in proxies["vless"]:
             # Ensure vless id is a valid UUID
             try:
