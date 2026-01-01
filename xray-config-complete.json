@@ -1,0 +1,86 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "routing": {
+    "rules": [
+      {
+        "inboundTag": [
+          "API_INBOUND"
+        ],
+        "outboundTag": "API",
+        "type": "field"
+      }
+    ]
+  },
+  "inbounds": [
+    {
+      "tag": "API_INBOUND",
+      "listen": "127.0.0.1",
+      "port": 8080,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "127.0.0.1"
+      }
+    },
+    {
+      "tag": "VMess TCP",
+      "protocol": "vmess",
+      "listen": "0.0.0.0",
+      "port": 443,
+      "settings": {
+        "clients": []
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "/var/lib/marzban/ssl/certificate.pem",
+              "keyFile": "/var/lib/marzban/ssl/key.pem"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom"
+    },
+    {
+      "tag": "blocked",
+      "protocol": "blackhole"
+    },
+    {
+      "tag": "API",
+      "protocol": "freedom"
+    }
+  ],
+  "api": {
+    "services": [
+      "HandlerService",
+      "StatsService",
+      "LoggerService"
+    ],
+    "tag": "API"
+  },
+  "stats": {},
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserUplink": true,
+        "statsUserDownlink": true
+      }
+    },
+    "system": {
+      "statsInboundDownlink": false,
+      "statsInboundUplink": false,
+      "statsOutboundDownlink": true,
+      "statsOutboundUplink": true
+    }
+  }
+}
+
