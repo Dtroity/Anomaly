@@ -99,20 +99,60 @@ class MarzbanService:
         proxies: Optional[Dict] = None
     ) -> Dict:
         """Create new user in Marzban"""
-        # Generate UUID for vless proxy if not provided
+        # If no proxies specified, try to use available protocols
+        # Try vmess first (most common), then vless, then trojan
         if not proxies:
-            proxies = {
-                "vless": {
-                    "id": str(uuid.uuid4()),
-                    "flow": ""
+            # Try to get available inbounds to determine which protocol to use
+            try:
+                inbounds = await self._request("GET", "/inbounds")
+                # Check which protocols are available
+                available_protocols = list(inbounds.keys()) if isinstance(inbounds, dict) else []
+                
+                if "vmess" in available_protocols:
+                    proxies = {
+                        "vmess": {
+                            "id": str(uuid.uuid4())
+                        }
+                    }
+                elif "vless" in available_protocols:
+                    proxies = {
+                        "vless": {
+                            "id": str(uuid.uuid4()),
+                            "flow": ""
+                        }
+                    }
+                elif "trojan" in available_protocols:
+                    proxies = {
+                        "trojan": {
+                            "password": str(uuid.uuid4())
+                        }
+                    }
+                else:
+                    # Default to vmess if we can't determine
+                    proxies = {
+                        "vmess": {
+                            "id": str(uuid.uuid4())
+                        }
+                    }
+            except Exception:
+                # If we can't get inbounds, default to vmess
+                proxies = {
+                    "vmess": {
+                        "id": str(uuid.uuid4())
+                    }
                 }
-            }
         elif "vless" in proxies and "id" in proxies["vless"]:
             # Ensure vless id is a valid UUID
             try:
                 uuid.UUID(proxies["vless"]["id"])
             except (ValueError, TypeError):
                 proxies["vless"]["id"] = str(uuid.uuid4())
+        elif "vmess" in proxies and "id" in proxies["vmess"]:
+            # Ensure vmess id is a valid UUID
+            try:
+                uuid.UUID(proxies["vmess"]["id"])
+            except (ValueError, TypeError):
+                proxies["vmess"]["id"] = str(uuid.uuid4())
         
         payload = {
             "username": username,
