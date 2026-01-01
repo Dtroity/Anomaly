@@ -100,47 +100,48 @@ class MarzbanService:
     ) -> Dict:
         """Create new user in Marzban"""
         # If no proxies specified, try to use available protocols
-        # Try vmess first (most common), then vless, then trojan
+        # Try to get available inbounds to determine which protocol to use
         if not proxies:
-            # Try to get available inbounds to determine which protocol to use
             try:
                 inbounds = await self._request("GET", "/inbounds")
                 # Check which protocols are available
                 available_protocols = list(inbounds.keys()) if isinstance(inbounds, dict) else []
                 
-                if "vmess" in available_protocols:
+                # Try protocols in order: vmess, vless, trojan, shadowsocks
+                if "vmess" in available_protocols and available_protocols["vmess"]:
                     proxies = {
                         "vmess": {
                             "id": str(uuid.uuid4())
                         }
                     }
-                elif "vless" in available_protocols:
+                elif "vless" in available_protocols and available_protocols["vless"]:
                     proxies = {
                         "vless": {
                             "id": str(uuid.uuid4()),
                             "flow": ""
                         }
                     }
-                elif "trojan" in available_protocols:
+                elif "trojan" in available_protocols and available_protocols["trojan"]:
                     proxies = {
                         "trojan": {
                             "password": str(uuid.uuid4())
                         }
                     }
-                else:
-                    # Default to vmess if we can't determine
+                elif "shadowsocks" in available_protocols and available_protocols["shadowsocks"]:
                     proxies = {
-                        "vmess": {
-                            "id": str(uuid.uuid4())
+                        "shadowsocks": {
+                            "password": str(uuid.uuid4()),
+                            "method": "chacha20-ietf-poly1305"
                         }
                     }
-            except Exception:
-                # If we can't get inbounds, default to vmess
-                proxies = {
-                    "vmess": {
-                        "id": str(uuid.uuid4())
-                    }
-                }
+                else:
+                    # If no protocols found, try creating user with empty proxies
+                    # Marzban will use default protocol
+                    proxies = {}
+            except Exception as e:
+                logger.warning(f"Could not get inbounds, trying empty proxies: {e}")
+                # If we can't get inbounds, try empty proxies (Marzban will use defaults)
+                proxies = {}
         elif "vless" in proxies and "id" in proxies["vless"]:
             # Ensure vless id is a valid UUID
             try:
