@@ -15,6 +15,10 @@ services:
       SSL_CLIENT_CERT_FILE: "/var/lib/marzban-node/ssl/certificate.pem"
       # Использовать REST API протокол (для Marzban 0.4.4+)
       SERVICE_PROTOCOL: "rest"
+      # SSL сертификат и ключ для сервера (прием подключений от Marzban)
+      UVICORN_SSL_CERTFILE: "/var/lib/marzban-node/node-certs/certificate.pem"
+      UVICORN_SSL_KEYFILE: "/var/lib/marzban-node/node-certs/key.pem"
+      UVICORN_SSL_CA_TYPE: "private"
     volumes:
       - ./node-data:/var/lib/marzban-node
       - /var/lib/marzban-node/ssl:/var/lib/marzban-node/ssl:ro
