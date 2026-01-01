@@ -18,7 +18,32 @@ fi
 echo "✅ Marzban запущен"
 echo ""
 
-# 2. Получить сертификат ноды из базы данных
+# 2. Получить сертификат из таблицы TLS
+echo "📋 Сертификат для подключения к нодам (из таблицы TLS):"
+docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
+import sys
+sys.path.insert(0, '/code')
+from app.db import GetDB
+from app.db.models import TLS
+
+with GetDB() as db:
+    tls = db.query(TLS).first()
+    if tls:
+        print(f"  Сертификат (первые 200 символов):")
+        cert_preview = tls.certificate[:200] if len(tls.certificate) > 200 else tls.certificate
+        print(f"    {cert_preview}...")
+        print(f"  Ключ (первые 200 символов):")
+        key_preview = tls.key[:200] if len(tls.key) > 200 else tls.key
+        print(f"    {key_preview}...")
+        print(f"\n  💡 Этот сертификат используется Marzban для подключения ко всем нодам")
+        print(f"  💡 Он должен быть установлен на ноде как SSL_CLIENT_CERT_FILE")
+    else:
+        print("  ❌ Сертификат не найден в таблице TLS")
+PYTHON_SCRIPT
+
+echo ""
+
+# 3. Получить информацию о ноде
 echo "📋 Информация о ноде в базе данных:"
 docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
 import sys
