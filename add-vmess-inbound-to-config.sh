@@ -142,7 +142,9 @@ try:
     
     # Добавить routing rule для API, если её нет
     has_api_rule = any(
-        rule.get("inboundTag") == ["api"] and rule.get("outboundTag") == "API"
+        isinstance(rule.get("inboundTag"), list) and 
+        "api" in rule.get("inboundTag", []) and 
+        rule.get("outboundTag") == "API"
         for rule in config["routing"]["rules"]
     )
     
