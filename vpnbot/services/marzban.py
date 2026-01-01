@@ -105,29 +105,33 @@ class MarzbanService:
             try:
                 inbounds = await self._request("GET", "/inbounds")
                 # Check which protocols are available
-                available_protocols = list(inbounds.keys()) if isinstance(inbounds, dict) else []
+                # inbounds can be a dict like {"vmess": [...], "vless": [...]} or empty dict {}
+                if not isinstance(inbounds, dict):
+                    inbounds = {}
+                
+                available_protocols = list(inbounds.keys()) if inbounds else []
                 
                 # Try protocols in order: vmess, vless, trojan, shadowsocks
-                if "vmess" in available_protocols and available_protocols["vmess"]:
+                if "vmess" in available_protocols and inbounds.get("vmess"):
                     proxies = {
                         "vmess": {
                             "id": str(uuid.uuid4())
                         }
                     }
-                elif "vless" in available_protocols and available_protocols["vless"]:
+                elif "vless" in available_protocols and inbounds.get("vless"):
                     proxies = {
                         "vless": {
                             "id": str(uuid.uuid4()),
                             "flow": ""
                         }
                     }
-                elif "trojan" in available_protocols and available_protocols["trojan"]:
+                elif "trojan" in available_protocols and inbounds.get("trojan"):
                     proxies = {
                         "trojan": {
                             "password": str(uuid.uuid4())
                         }
                     }
-                elif "shadowsocks" in available_protocols and available_protocols["shadowsocks"]:
+                elif "shadowsocks" in available_protocols and inbounds.get("shadowsocks"):
                     proxies = {
                         "shadowsocks": {
                             "password": str(uuid.uuid4()),
