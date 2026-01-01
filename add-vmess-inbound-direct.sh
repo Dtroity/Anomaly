@@ -65,9 +65,33 @@ echo ""
 echo "📋 Получение текущей конфигурации..."
 CURRENT_CONFIG=$(docker exec anomaly-marzban cat "$CONFIG_PATH" 2>/dev/null)
 
-if [ -z "$CURRENT_CONFIG" ]; then
-    echo "  ❌ Не удалось прочитать конфигурацию"
-    exit 1
+if [ -z "$CURRENT_CONFIG" ] || [ "$CURRENT_CONFIG" = "null" ] || [ "$(echo "$CURRENT_CONFIG" | tr -d '[:space:]')" = "" ]; then
+    echo "  ⚠️  Файл конфигурации пустой или поврежден, создаем базовую конфигурацию..."
+    CURRENT_CONFIG='{
+  "log": {
+    "loglevel": "warning"
+  },
+  "routing": {
+    "rules": []
+  },
+  "inbounds": [
+    {
+      "tag": "api",
+      "listen": "127.0.0.1",
+      "port": 0,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "127.0.0.1"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "DIRECT"
+    }
+  ]
+}'
 fi
 
 # Проверка, есть ли уже VMess inbound
@@ -83,7 +107,28 @@ import sys
 import json
 
 try:
-    config = json.load(sys.stdin)
+    # Проверка, что входные данные не пустые
+    input_data = sys.stdin.read().strip()
+    if not input_data or input_data == "null":
+        # Создать базовую конфигурацию
+        config = {
+            "log": {"loglevel": "warning"},
+            "routing": {"rules": []},
+            "inbounds": [
+                {
+                    "tag": "api",
+                    "listen": "127.0.0.1",
+                    "port": 0,
+                    "protocol": "dokodemo-door",
+                    "settings": {"address": "127.0.0.1"}
+                }
+            ],
+            "outbounds": [
+                {"protocol": "freedom", "tag": "DIRECT"}
+            ]
+        }
+    else:
+        config = json.loads(input_data)
     
     # Получить существующие inbounds
     inbounds = config.get("inbounds", [])
