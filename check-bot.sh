@@ -69,21 +69,7 @@ if docker-compose ps db | grep -q "healthy\|Up"; then
     echo "  ✅ База данных запущена"
     
     # Проверить, может ли бот подключиться к БД
-    DB_CONNECTION=$(docker-compose exec -T bot python3 -c "
-import os
-from sqlalchemy import create_engine
-try:
-    db_url = os.getenv('DATABASE_URL', '')
-    if db_url:
-        engine = create_engine(db_url)
-        with engine.connect() as conn:
-            conn.execute('SELECT 1')
-        print('OK')
-    else:
-        print('NO_URL')
-except Exception as e:
-    print(f'ERROR: {str(e)}')
-" 2>/dev/null || echo "ERROR: Cannot check")
+    DB_CONNECTION=$(docker-compose exec -T bot python3 -c 'import os; from sqlalchemy import create_engine; db_url = os.getenv("DATABASE_URL", ""); print("OK" if db_url and create_engine(db_url).connect() else "NO_URL")' 2>/dev/null || echo "ERROR: Cannot check")
     
     if [ "$DB_CONNECTION" = "OK" ]; then
         echo "  ✅ Бот может подключиться к базе данных"
