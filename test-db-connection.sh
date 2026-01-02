@@ -33,16 +33,32 @@ else
 fi
 
 echo ""
-echo "3️⃣  Проверка импорта модулей базы данных..."
+echo "3️⃣  Проверка структуры директорий в контейнере..."
+DIR_CHECK=$(docker exec anomaly-marzban sh -c "ls -la /code 2>&1 | head -5; echo '---'; ls -la /code/app 2>&1 | head -5; echo '---'; ls -la /code/app/db 2>&1 | head -5" 2>&1)
+echo "$DIR_CHECK" | sed 's/^/      /'
+
+echo ""
+echo "4️⃣  Проверка импорта модулей базы данных..."
 IMPORT_TEST=$(docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
 import sys
-sys.path.insert(0, '/code')
+import os
+
+# Попробовать разные пути
+paths_to_try = ['/code', '/app', '/marzban']
+for path in paths_to_try:
+    if os.path.exists(path):
+        sys.path.insert(0, path)
+        print(f"Added to path: {path}")
+
+print(f"Python path: {sys.path[:3]}")
 
 try:
     from app.db import GetDB
     print("SUCCESS: GetDB imported")
 except Exception as e:
     print(f"ERROR: GetDB import failed - {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 
 try:
@@ -50,6 +66,8 @@ try:
     print("SUCCESS: TLS and Node models imported")
 except Exception as e:
     print(f"ERROR: Models import failed - {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 PYTHON_SCRIPT
 2>&1)
@@ -60,14 +78,23 @@ if echo "$IMPORT_TEST" | grep -q "SUCCESS"; then
 else
     echo "   ❌ Ошибка импорта:"
     echo "$IMPORT_TEST" | sed 's/^/      /'
+    echo ""
+    echo "   💡 Попробуйте проверить рабочую директорию Marzban:"
+    echo "      docker exec anomaly-marzban pwd"
+    echo "      docker exec anomaly-marzban ls -la /"
     exit 1
 fi
 
 echo ""
-echo "4️⃣  Проверка подключения к базе данных..."
+echo "5️⃣  Проверка подключения к базе данных..."
 DB_TEST=$(docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
 import sys
-sys.path.insert(0, '/code')
+import os
+
+# Добавить пути
+for path in ['/code', '/app', '/marzban']:
+    if os.path.exists(path):
+        sys.path.insert(0, path)
 
 try:
     from app.db import GetDB
