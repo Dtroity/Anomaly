@@ -216,11 +216,8 @@ async def callback_connect(callback: CallbackQuery):
                     f"💡 Инструкция по настройке: /help"
                 )
                 
-                # Create keyboard with copy button for convenience
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📋 Копировать ссылку", url=subscription)],
-                    *get_user_keyboard().inline_keyboard
-                ])
+                # Use standard keyboard - link is already clickable in the message
+                keyboard = get_user_keyboard()
                 
                 await callback.message.edit_text(
                     connection_text,

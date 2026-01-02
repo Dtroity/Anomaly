@@ -102,7 +102,15 @@ async def callback_admin_refresh(callback: CallbackQuery):
         await callback.answer("Доступ запрещен", show_alert=True)
         return
     
-    await cmd_admin(callback.message)
+    # Create a message object for cmd_admin
+    from aiogram.types import Message
+    fake_message = Message(
+        message_id=callback.message.message_id,
+        date=callback.message.date,
+        chat=callback.message.chat,
+        from_user=callback.from_user
+    )
+    await cmd_admin(fake_message)
 
 
 @router.callback_query(F.data == "admin_users")
