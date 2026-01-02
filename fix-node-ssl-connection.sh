@@ -108,22 +108,42 @@ if [ -f docker-compose.node.yml ]; then
     # Перезапустить ноду
     echo "🔄 Перезапуск ноды..."
     if docker ps | grep -q anomaly-node; then
-        docker-compose -f docker-compose.node.yml restart marzban-node 2>/dev/null || \
-        docker restart anomaly-node 2>/dev/null || \
-        echo "  ⚠️  Не удалось перезапустить автоматически"
-        echo "  💡 Выполните вручную: docker-compose -f docker-compose.node.yml restart marzban-node"
+        if docker-compose -f docker-compose.node.yml restart marzban-node 2>/dev/null; then
+            echo "  ✅ Нода перезапущена"
+        elif docker restart anomaly-node 2>/dev/null; then
+            echo "  ✅ Нода перезапущена (через docker restart)"
+        else
+            echo "  ⚠️  Не удалось перезапустить автоматически"
+            echo "  💡 Выполните вручную: docker-compose -f docker-compose.node.yml restart marzban-node"
+        fi
     else
         echo "  ⚠️  Нода не запущена"
         echo "  💡 Запустите: docker-compose -f docker-compose.node.yml up -d"
     fi
     
     echo ""
+    echo "⏳ Ожидание запуска ноды (10 секунд)..."
+    sleep 10
+    
+    echo ""
+    echo "📋 Проверка статуса ноды:"
+    if docker ps | grep -q anomaly-node; then
+        echo "  ✅ Нода запущена"
+    else
+        echo "  ❌ Нода не запущена"
+    fi
+    
+    echo ""
+    echo "📋 Последние логи ноды:"
+    docker logs anomaly-node --tail=20 2>&1 | head -20
+    
+    echo ""
     echo "✅ Готово!"
     echo ""
     echo "💡 Следующие шаги:"
-    echo "   1. Подождите 10-20 секунд"
-    echo "   2. Проверьте логи: docker logs anomaly-node --tail=30"
-    echo "   3. Вернитесь в панель Marzban и нажмите 'Переподключиться'"
+    echo "   1. Проверьте логи выше на наличие ошибок"
+    echo "   2. Вернитесь в панель Marzban: https://panel.anomaly-connect.online"
+    echo "   3. Перейдите в Nodes -> Node 1 -> нажмите 'Переподключиться'"
     echo ""
     
 else
