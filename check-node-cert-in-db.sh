@@ -25,39 +25,52 @@ try:
     from app.db.models import Node, TLS
     
     with GetDB() as db:
+        # Сначала проверить TLS
+        print("=== TLS Сертификаты ===")
+        tls = db.query(TLS).first()
+        if tls:
+            print(f"✅ TLS запись найдена")
+            print(f"Certificate length: {len(tls.certificate) if tls.certificate else 0}")
+            print(f"Key length: {len(tls.key) if tls.key else 0}")
+            if tls.certificate and len(tls.certificate) > 0:
+                print(f"Certificate preview: {tls.certificate[:100]}...")
+                if tls.certificate.startswith("-----BEGIN"):
+                    print("✅ TLS Certificate format: Valid PEM")
+                else:
+                    print("⚠️  TLS Certificate format: May be invalid")
+            else:
+                print("⚠️  Certificate is empty")
+        else:
+            print("❌ TLS сертификаты не найдены в базе данных")
+            print("   💡 Нужно установить сертификат: ./fix-node-cert-in-db.sh /tmp/node-cert.pem")
+        
+        print("\n=== Ноды ===")
         node = db.query(Node).filter(Node.name == "Node 1").first()
         if node:
+            print(f"✅ Нода 'Node 1' найдена")
             print(f"Node ID: {node.id}")
             print(f"Name: {node.name}")
             print(f"Address: {node.address}")
             print(f"Port: {node.port}")
             print(f"API Port: {node.api_port}")
             print(f"Status: {node.status}")
-            print(f"Message: {node.message}")
-            
-            # Проверить TLS сертификаты
-            tls = db.query(TLS).first()
-            if tls:
-                print(f"\nTLS Certificate length: {len(tls.certificate)}")
-                print(f"TLS Key length: {len(tls.key)}")
-                print(f"TLS Certificate preview: {tls.certificate[:100]}...")
-                if tls.certificate.startswith("-----BEGIN"):
-                    print("✅ TLS Certificate format: Valid PEM")
-                else:
-                    print("⚠️  TLS Certificate format: May be invalid")
-            else:
-                print("\n⚠️  TLS сертификаты не найдены в базе данных")
-                print("   💡 Нужно скачать сертификат из панели Marzban")
+            print(f"Message: {node.message if node.message else '(empty)'")
         else:
-            print("❌ Нода 'Node 1' не найдена в базе данных")
+            print("⚠️  Нода 'Node 1' не найдена в базе данных")
             # Попробовать найти любую ноду
             all_nodes = db.query(Node).all()
             if all_nodes:
-                print(f"\nНайдено нод: {len(all_nodes)}")
+                print(f"Найдено нод: {len(all_nodes)}")
                 for n in all_nodes:
                     print(f"  - {n.name}: {n.address}:{n.port}")
             else:
-                print("\n⚠️  Ноды не найдены в базе данных")
+                print("❌ Ноды не найдены в базе данных")
+                print("   💡 Нужно добавить ноду через панель Marzban")
+except ImportError as e:
+    print(f"ERROR: Import error - {type(e).__name__}: {str(e)}")
+    print("   💡 Возможно, проблема с путями Python или модулями")
+    import traceback
+    traceback.print_exc()
 except Exception as e:
     print(f"ERROR: {type(e).__name__}: {str(e)}")
     import traceback
