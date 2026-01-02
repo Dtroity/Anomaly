@@ -205,9 +205,6 @@ async def callback_connect(callback: CallbackQuery):
             if subscription:
                 # Format message with highlighted clickable link using HTML
                 # Use HTML to make link blue and clickable on all devices
-                # Also provide alternative formats for different clients
-                base_subscription = subscription.replace("/v2ray-json", "").replace("/v2ray", "")
-                
                 connection_text = (
                     f"✅ Подключение готово!\n\n"
                     f"📱 Ваш ключ доступа:\n"
@@ -216,9 +213,7 @@ async def callback_connect(callback: CallbackQuery):
                     f"• Действует до: {user.expires_at.strftime('%d.%m.%Y %H:%M') if user.expires_at else 'Не ограничено'}\n"
                     f"• Трафик: {user.used_traffic_gb:.2f} / {user.traffic_limit_gb:.2f} GB\n"
                     f"• Устройства: до {user.max_devices}\n\n"
-                    f"💡 Инструкция по настройке: /help\n\n"
-                    f"💡 Если V2RayTun не работает, попробуйте базовую ссылку:\n"
-                    f'<code>{base_subscription}</code>'
+                    f"💡 Инструкция по настройке: /help"
                 )
                 
                 # Use standard keyboard - link is already clickable in the message
