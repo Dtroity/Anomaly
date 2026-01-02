@@ -326,8 +326,13 @@ class MarzbanService:
             # No event loop, create new one
             return asyncio.run(self.get_system_stats())
     
-    async def get_subscription_url(self, username: str) -> Optional[str]:
-        """Get subscription URL for user"""
+    async def get_subscription_url(self, username: str, client_type: str = "v2ray") -> Optional[str]:
+        """Get subscription URL for user
+        
+        Args:
+            username: Username
+            client_type: Client type (v2ray, clash, etc.). Default is v2ray for V2RayTun compatibility
+        """
         try:
             user = await self.get_user(username)
             if not user:
@@ -337,16 +342,28 @@ class MarzbanService:
             subscription_url = user.get("subscription_url", "")
             
             if subscription_url:
-                # If URL is relative, make it absolute
+                # Extract token from subscription URL
+                # Format: /sub/{token} or /sub/{token}/
                 if subscription_url.startswith("/"):
-                    # Use public API URL (api.anomaly-connect.online) instead of internal
-                    # This ensures subscription works through Nginx proxy
+                    # Remove leading slash and trailing slash if present
+                    token = subscription_url.strip("/").replace("/sub/", "").replace("sub/", "")
+                    # Use public API URL with client type for better compatibility
+                    # For V2Ray clients, use /v2ray endpoint
                     base_url = "https://api.anomaly-connect.online"
+                    if client_type == "v2ray":
+                        # Use /v2ray endpoint for V2Ray clients (V2RayTun, v2rayNG, etc.)
+                        return f"{base_url}/sub/{token}/v2ray"
                     return f"{base_url}{subscription_url}"
                 
                 # If URL is already absolute, ensure it uses HTTPS
                 if subscription_url.startswith("http://"):
                     subscription_url = subscription_url.replace("http://", "https://", 1)
+                
+                # For absolute URLs, try to add /v2ray if it's a V2Ray client
+                if client_type == "v2ray" and "/v2ray" not in subscription_url:
+                    # Check if it ends with token, add /v2ray
+                    if subscription_url.endswith("/") or not subscription_url.endswith("/v2ray"):
+                        subscription_url = subscription_url.rstrip("/") + "/v2ray"
                 
                 return subscription_url
             

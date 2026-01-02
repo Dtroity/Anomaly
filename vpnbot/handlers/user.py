@@ -199,7 +199,8 @@ async def callback_connect(callback: CallbackQuery):
             db.commit()
             
             # Get connection link (subscription URL) - always get fresh URL
-            subscription = marzban_user.get("subscription_url") or await marzban.get_subscription_url(username)
+            # Use v2ray client type for better compatibility with V2RayTun and other V2Ray clients
+            subscription = marzban_user.get("subscription_url") or await marzban.get_subscription_url(username, client_type="v2ray")
             
             if subscription:
                 # Format message with highlighted clickable link using HTML
