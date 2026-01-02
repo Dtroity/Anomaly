@@ -229,12 +229,25 @@ try:
     req.add_header('Authorization', 'Bearer ${TOKEN}')
     
     with urllib.request.urlopen(req, timeout=5, context=ssl_context) as response:
-        result = json.loads(response.read().decode('utf-8'))
-        print(json.dumps(result.get('users', [])))
-except Exception as e:
-    print('[]', file=sys.stderr)
+        response_text = response.read().decode('utf-8')
+        result = json.loads(response_text)
+        users = result.get('users', [])
+        print(json.dumps(users))
+except urllib.error.HTTPError as e:
+    error_body = e.read().decode('utf-8') if e.fp else ''
+    print(f'HTTP_ERROR: {e.code} - {error_body}', file=sys.stderr)
+    print('[]')
     sys.exit(1)
-" 2>/dev/null)
+except json.JSONDecodeError as e:
+    print(f'JSON_ERROR: {str(e)}', file=sys.stderr)
+    print(f'Response was: {response_text[:200]}', file=sys.stderr)
+    print('[]')
+    sys.exit(1)
+except Exception as e:
+    print(f'ERROR: {str(e)}', file=sys.stderr)
+    print('[]')
+    sys.exit(1)
+" 2>&1)
 
 FIXED_COUNT=0
 
