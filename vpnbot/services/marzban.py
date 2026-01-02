@@ -350,10 +350,10 @@ class MarzbanService:
                     # Use public API URL with client type for better compatibility
                     base_url = "https://api.anomaly-connect.online"
                     if client_type == "v2ray":
-                        # For V2RayTun on iPhone, try v2ray-json format first
-                        # v2ray-json returns JSON format which V2RayTun can parse better
-                        # If that doesn't work, fall back to base URL
-                        return f"{base_url}/sub/{token}/v2ray-json"
+                        # For V2RayTun, use base subscription URL (without endpoint suffix)
+                        # Marzban automatically detects client type from User-Agent
+                        # Base URL returns base64-encoded v2ray links which V2RayTun expects
+                        return f"{base_url}/sub/{token}"
                     return f"{base_url}{subscription_url}"
                 
                 # If URL is already absolute, ensure it uses HTTPS
