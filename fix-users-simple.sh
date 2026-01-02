@@ -35,7 +35,7 @@ echo "✅ Учетные данные получены"
 
 # Get token using Python
 echo "🔐 Получение токена администратора..."
-TOKEN=$(docker exec anomaly-marzban python3 -c "
+TOKEN_RESPONSE=$(docker exec anomaly-marzban python3 -c "
 import urllib.request
 import urllib.parse
 import json
@@ -53,15 +53,38 @@ try:
     
     with urllib.request.urlopen(req, timeout=5) as response:
         result = json.loads(response.read().decode('utf-8'))
-        print(result.get('access_token', ''))
+        print(json.dumps(result))
+except urllib.error.HTTPError as e:
+    error_body = e.read().decode('utf-8') if e.fp else ''
+    print(f'HTTP_ERROR: {e.code} - {error_body}', file=sys.stderr)
+    sys.exit(1)
 except Exception as e:
     print(f'ERROR: {str(e)}', file=sys.stderr)
     sys.exit(1)
-" 2>/dev/null)
+" 2>&1)
 
-if [ -z "$TOKEN" ] || [ "$TOKEN" = "ERROR"* ]; then
+# Extract token from response
+TOKEN=$(echo "$TOKEN_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('access_token', ''))" 2>/dev/null)
+
+# If failed, try from host
+if [ -z "$TOKEN" ]; then
+    echo "   Попытка получить токен с хоста..."
+    TOKEN_RESPONSE=$(curl -s -X POST "http://localhost:62050/api/admin/token" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "username=${ADMIN_USER}&password=${ADMIN_PASS}" 2>/dev/null)
+    TOKEN=$(echo "$TOKEN_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('access_token', ''))" 2>/dev/null)
+fi
+
+if [ -z "$TOKEN" ]; then
     echo "❌ Не удалось получить токен"
-    echo "💡 Проверьте пароль в .env.marzban (SUDO_PASSWORD)"
+    echo "💡 Ответ API: ${TOKEN_RESPONSE:0:300}"
+    echo ""
+    echo "💡 Проверьте:"
+    echo "   1. Пароль в .env.marzban (SUDO_PASSWORD)"
+    echo "   2. Доступность Marzban:"
+    echo "      docker exec anomaly-marzban python3 -c \"import urllib.request; urllib.request.urlopen('http://marzban:62050/api/system', timeout=2)\""
+    echo "   3. Попробуйте получить токен вручную:"
+    echo "      curl -X POST http://localhost:62050/api/admin/token -d 'username=${ADMIN_USER}&password=ВАШ_ПАРОЛЬ'"
     exit 1
 fi
 
