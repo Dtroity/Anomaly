@@ -1,148 +1,142 @@
 #!/bin/bash
+# Полная диагностика подключения ноды Marzban
 
-# Скрипт для диагностики проблемы подключения ноды
+echo "🔍 Полная диагностика подключения ноды Marzban"
+echo "=============================================="
+echo ""
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$PROJECT_DIR"
+# Проверка, на каком сервере запущен скрипт
+if [ ! -f docker-compose.yml ]; then
+    echo "⚠️  Этот скрипт должен быть запущен на Control Server (VPS #1)"
+    exit 1
+fi
 
-echo "🔍 Диагностика подключения ноды Marzban"
-echo "========================================"
+echo "✅ Обнаружен Control Server"
 echo ""
 
 NODE_IP="185.126.67.67"
 NODE_PORT="62050"
-NODE_API_PORT="62051"
 
-# 1. Проверка доступности ноды с Control Server
-echo "1️⃣ Проверка доступности ноды с Control Server:"
-echo ""
-
-# Ping
-echo "   📡 Ping ноды ($NODE_IP):"
+echo "📡 1. Проверка сетевой связности..."
+echo "   Ping к ноде:"
 if ping -c 3 -W 2 "$NODE_IP" > /dev/null 2>&1; then
-    echo "      ✅ IP адрес доступен"
+    echo "   ✅ Нода доступна по IP"
 else
-    echo "      ❌ IP адрес недоступен"
-    echo "         Проверьте, что нода запущена и доступна"
+    echo "   ⚠️  Ping не проходит (может быть заблокирован firewall, это нормально)"
 fi
-echo ""
 
-# Проверка порта 62050
-echo "   🔌 Проверка порта $NODE_PORT (marzban-node):"
-if timeout 5 bash -c "echo > /dev/tcp/$NODE_IP/$NODE_PORT" 2>/dev/null; then
-    echo "      ✅ Порт $NODE_PORT открыт и доступен"
+echo ""
+echo "📡 2. Проверка порта ноды..."
+if timeout 3 bash -c "echo > /dev/tcp/$NODE_IP/$NODE_PORT" 2>/dev/null; then
+    echo "   ✅ Порт $NODE_PORT открыт"
 else
-    echo "      ❌ Порт $NODE_PORT недоступен"
-    echo "         Проверьте:"
-    echo "         - Запущен ли marzban-node на ноде"
-    echo "         - Открыт ли порт $NODE_PORT в файрволе на ноде"
-    echo "         - Правильный ли IP адрес"
+    echo "   ❌ Порт $NODE_PORT недоступен"
 fi
-echo ""
 
-# Проверка порта 62051
-echo "   🔌 Проверка порта $NODE_API_PORT (API):"
-if timeout 5 bash -c "echo > /dev/tcp/$NODE_IP/$NODE_API_PORT" 2>/dev/null; then
-    echo "      ✅ Порт $NODE_API_PORT открыт и доступен"
+echo ""
+echo "📡 3. Проверка HTTPS подключения к ноде..."
+HTTPS_TEST=$(timeout 5 openssl s_client -connect "$NODE_IP:$NODE_PORT" -servername "$NODE_IP" </dev/null 2>&1 | grep -E "Verify return code|CONNECTED|SSL handshake")
+if echo "$HTTPS_TEST" | grep -q "CONNECTED"; then
+    echo "   ✅ HTTPS подключение работает"
+    echo "$HTTPS_TEST" | head -3 | sed 's/^/   /'
 else
-    echo "      ⚠️  Порт $NODE_API_PORT недоступен (может быть нормально, если используется другой порт)"
+    echo "   ❌ HTTPS подключение не работает"
+    echo "$HTTPS_TEST" | head -3 | sed 's/^/   /'
 fi
-echo ""
 
-# 2. Проверка конфигурации ноды в Marzban
-echo "2️⃣ Проверка конфигурации ноды в Marzban:"
 echo ""
+echo "📡 4. Проверка статуса ноды на Node Server..."
+echo "   Выполните на Node Server:"
+echo "   ssh root@$NODE_IP 'docker ps | grep anomaly-node'"
+echo "   ssh root@$NODE_IP 'docker logs anomaly-node --tail=30'"
+echo "   ssh root@$NODE_IP 'ls -la /var/lib/marzban-node/node-certs/'"
 
-if docker-compose ps marzban | grep -q "Up"; then
-    echo "   📋 Список нод в Marzban:"
-    docker-compose exec -T marzban marzban-cli node list 2>/dev/null || echo "      ⚠️  Не удалось получить список нод"
-    echo ""
+echo ""
+echo "📡 5. Проверка через Marzban API..."
+
+# Получить токен
+TOKEN=""
+if [ -f .env.marzban ]; then
+    ADMIN_USERNAME=$(grep "^SUDO_USERNAME=" .env.marzban | cut -d'=' -f2 | tr -d '"' || grep "^ADMIN_USERNAME=" .env.marzban | cut -d'=' -f2 | tr -d '"')
+    ADMIN_PASSWORD=$(grep "^SUDO_PASSWORD=" .env.marzban | cut -d'=' -f2 | tr -d '"' || grep "^ADMIN_PASSWORD=" .env.marzban | cut -d'=' -f2 | tr -d '"')
+fi
+
+if [ -z "$ADMIN_USERNAME" ] && [ -f .env ]; then
+    ADMIN_USERNAME=$(grep "^SUDO_USERNAME=" .env | cut -d'=' -f2 | tr -d '"' || grep "^ADMIN_USERNAME=" .env | cut -d'=' -f2 | tr -d '"')
+    ADMIN_PASSWORD=$(grep "^SUDO_PASSWORD=" .env | cut -d'=' -f2 | tr -d '"' || grep "^ADMIN_PASSWORD=" .env | cut -d'=' -f2 | tr -d '"')
+fi
+
+if [ -n "$ADMIN_USERNAME" ] && [ -n "$ADMIN_PASSWORD" ]; then
+    TOKEN_RESPONSE=$(docker exec anomaly-marzban python3 -c "
+import urllib.request, urllib.parse, json, ssl
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+try:
+    req = urllib.request.Request('https://marzban:62050/api/admin/token')
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+    data = urllib.parse.urlencode({'username': '$ADMIN_USERNAME', 'password': '$ADMIN_PASSWORD'}).encode()
+    with urllib.request.urlopen(req, data=data, timeout=5, context=ssl_context) as resp:
+        result = json.loads(resp.read().decode())
+        print(result.get('access_token', ''))
+except Exception as e:
+    print('ERROR:', str(e))
+" 2>/dev/null)
     
-    echo "   💡 Проверьте в панели Marzban:"
-    echo "      - Адрес ноды должен быть: $NODE_IP"
-    echo "      - Порт должен быть: $NODE_PORT"
-    echo "      - API порт должен быть: $NODE_API_PORT"
-    echo ""
-else
-    echo "   ❌ Marzban не запущен"
-    echo ""
+    if [ -n "$TOKEN_RESPONSE" ] && [ "${TOKEN_RESPONSE:0:5}" != "ERROR" ]; then
+        TOKEN="$TOKEN_RESPONSE"
+        echo "   ✅ Токен получен"
+        
+        # Получить информацию о нодах
+        echo ""
+        echo "   📊 Информация о нодах:"
+        NODE_INFO=$(docker exec anomaly-marzban python3 -c "
+import urllib.request, json, ssl
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+try:
+    req = urllib.request.Request('https://marzban:62050/api/nodes')
+    req.add_header('Authorization', f'Bearer $TOKEN')
+    with urllib.request.urlopen(req, timeout=5, context=ssl_context) as resp:
+        result = json.loads(resp.read().decode())
+        if isinstance(result, list):
+            nodes = result
+        else:
+            nodes = result.get('nodes', [])
+        if nodes:
+            for node in nodes:
+                print(f\"Node: {node.get('name', 'N/A')}\")
+                print(f\"  Address: {node.get('address', 'N/A')}\")
+                print(f\"  Port: {node.get('port', 'N/A')}\")
+                print(f\"  API Port: {node.get('api_port', 'N/A')}\")
+                print(f\"  Status: {node.get('status', 'N/A')}\")
+                print(f\"  Connected: {node.get('connected', False)}\")
+        else:
+            print('No nodes found')
+except Exception as e:
+    print(f'ERROR: {str(e)}')
+" 2>/dev/null)
+        
+        echo "$NODE_INFO" | sed 's/^/   /'
+    else
+        echo "   ❌ Не удалось получить токен"
+    fi
 fi
 
-# 3. Проверка DNS
-echo "3️⃣ Проверка DNS:"
-echo "   🔍 Обратное разрешение DNS для $NODE_IP:"
-REVERSE_DNS=$(dig +short -x "$NODE_IP" 2>/dev/null || getent hosts "$NODE_IP" 2>/dev/null | awk '{print $2}')
-if [ -n "$REVERSE_DNS" ]; then
-    echo "      ✅ DNS: $REVERSE_DNS"
-else
-    echo "      ⚠️  Обратное DNS разрешение недоступно (может быть нормально)"
-fi
 echo ""
+echo "📋 6. Последние логи Marzban (ошибки подключения):"
+docker logs anomaly-marzban --tail=100 2>&1 | grep -i -E "node|connection|ssl|tls|error|failed|unable" | tail -15 | sed 's/^/   /'
 
-# 4. Проверка подключения через curl
-echo "4️⃣ Проверка подключения к marzban-node:"
-echo "   🔗 Попытка подключения к http://$NODE_IP:$NODE_PORT:"
-RESPONSE=$(timeout 5 curl -s -k -o /dev/null -w "%{http_code}" "http://$NODE_IP:$NODE_PORT" 2>/dev/null || echo "000")
-if [ "$RESPONSE" != "000" ] && [ "$RESPONSE" != "" ]; then
-    echo "      ✅ Подключение успешно (HTTP $RESPONSE)"
-else
-    echo "      ❌ Не удалось подключиться"
-    echo "         Возможные причины:"
-    echo "         - marzban-node не запущен на ноде"
-    echo "         - Порт $NODE_PORT закрыт файрволом"
-    echo "         - Неправильный IP адрес"
-fi
 echo ""
-
-# 5. Инструкции для проверки на ноде
-echo "5️⃣ Что проверить на ноде ($NODE_IP):"
+echo "✅ Диагностика завершена"
 echo ""
-echo "   Выполните на ноде следующие команды:"
+echo "💡 Рекомендации:"
+echo "   1. На Node Server выполните: ./generate-node-server-cert.sh"
+echo "   2. Проверьте логи ноды: docker logs anomaly-node --tail=50"
+echo "   3. Убедитесь, что сертификаты установлены:"
+echo "      ls -la /var/lib/marzban-node/ssl/certificate.pem"
+echo "      ls -la /var/lib/marzban-node/node-certs/certificate.pem"
+echo "      ls -la /var/lib/marzban-node/node-certs/key.pem"
+echo "   4. В панели Marzban нажмите 'Переподключиться'"
 echo ""
-echo "   # 1. Проверить, запущен ли marzban-node:"
-echo "   docker ps | grep marzban-node"
-echo "   # или"
-echo "   systemctl status marzban-node"
-echo ""
-echo "   # 2. Проверить логи marzban-node:"
-echo "   docker logs marzban-node"
-echo "   # или"
-echo "   journalctl -u marzban-node -n 50"
-echo ""
-echo "   # 3. Проверить, слушает ли порт 62050:"
-echo "   netstat -tlnp | grep 62050"
-echo "   # или"
-echo "   ss -tlnp | grep 62050"
-echo ""
-echo "   # 4. Проверить файрвол:"
-echo "   ufw status | grep 62050"
-echo "   # или"
-echo "   iptables -L -n | grep 62050"
-echo ""
-echo "   # 5. Проверить конфигурацию .env.node:"
-echo "   cat .env.node | grep -E 'CONTROL_SERVER_URL|SSL_CLIENT_CERT_FILE|UVICORN_HOST|UVICORN_PORT'"
-echo ""
-
-# 6. Рекомендации
-echo "6️⃣ Рекомендации:"
-echo ""
-echo "   Если порт недоступен:"
-echo "   1. На ноде откройте порт в файрволе:"
-echo "      ufw allow 62050/tcp"
-echo "      # или"
-echo "      iptables -A INPUT -p tcp --dport 62050 -j ACCEPT"
-echo ""
-echo "   2. Убедитесь, что marzban-node слушает на 0.0.0.0, а не на 127.0.0.1:"
-echo "      В .env.node должно быть: UVICORN_HOST=0.0.0.0"
-echo ""
-echo "   3. Проверьте, что CONTROL_SERVER_URL правильный:"
-echo "      CONTROL_SERVER_URL=https://panel.anomaly-connect.online"
-echo "      # или IP адрес Control Server"
-echo ""
-echo "   4. Перезапустите marzban-node на ноде:"
-echo "      docker-compose -f docker-compose.node.yml restart marzban-node"
-echo ""
-
-echo "✅ Диагностика завершена!"
-echo ""
-

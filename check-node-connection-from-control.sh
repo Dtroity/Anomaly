@@ -115,13 +115,19 @@ try:
     req.add_header('Authorization', f'Bearer $TOKEN')
     with urllib.request.urlopen(req, timeout=5, context=ssl_context) as resp:
         result = json.loads(resp.read().decode())
-        nodes = result.get('nodes', [])
+        # API может вернуть список напрямую или словарь с ключом 'nodes'
+        if isinstance(result, list):
+            nodes = result
+        else:
+            nodes = result.get('nodes', [])
         if nodes:
-            node = nodes[0]
+            node = nodes[0] if isinstance(nodes[0], dict) else {}
             print(f\"Name: {node.get('name', 'N/A')}\")
             print(f\"Address: {node.get('address', 'N/A')}\")
             print(f\"Status: {node.get('status', 'N/A')}\")
             print(f\"Connected: {node.get('connected', False)}\")
+            print(f\"Port: {node.get('port', 'N/A')}\")
+            print(f\"API Port: {node.get('api_port', 'N/A')}\")
         else:
             print('No nodes found')
 except Exception as e:
