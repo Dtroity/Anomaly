@@ -79,9 +79,17 @@ PYTHON_SCRIPT
 2>&1)
 
 if [ -n "$NODE_INFO" ]; then
-    echo "$NODE_INFO" | sed 's/^/   /'
+    # Проверить, есть ли ошибки
+    if echo "$NODE_INFO" | grep -q "ERROR:"; then
+        echo "  ❌ Ошибка при получении информации:"
+        echo "$NODE_INFO" | sed 's/^/      /'
+    else
+        echo "$NODE_INFO" | sed 's/^/   /'
+    fi
 else
     echo "  ❌ Не удалось получить информацию о ноде"
+    echo "  💡 Попробуйте проверить вручную:"
+    echo "     docker exec anomaly-marzban python3 -c \"from app.db import GetDB; from app.db.models import TLS, Node; db = next(GetDB()); print('TLS:', db.query(TLS).count()); print('Nodes:', db.query(Node).count())\""
 fi
 
 echo ""
