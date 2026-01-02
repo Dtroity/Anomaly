@@ -8,53 +8,58 @@ echo "=================================================="
 cd /opt/Anomaly || exit 1
 
 # Get admin credentials
-# Try multiple possible variable names
+# Marzban uses SUDO_USERNAME and SUDO_PASSWORD
 ADMIN_USER=""
 ADMIN_PASS=""
 
-# Check .env.marzban first
+# Check .env.marzban first (Marzban uses SUDO_USERNAME/SUDO_PASSWORD)
 if [ -f .env.marzban ]; then
-    ADMIN_USER=$(grep -E "^ADMIN_USERNAME=|^ADMIN_USER=" .env.marzban | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
-    ADMIN_PASS=$(grep -E "^ADMIN_PASSWORD=|^ADMIN_PASS=" .env.marzban | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    ADMIN_USER=$(grep "^SUDO_USERNAME=" .env.marzban | cut -d '=' -f2 | tr -d '"' | tr -d "'" | head -1)
+    ADMIN_PASS=$(grep "^SUDO_PASSWORD=" .env.marzban | cut -d '=' -f2 | tr -d '"' | tr -d "'" | head -1)
 fi
 
 # If not found, check .env
 if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
     if [ -f .env ]; then
-        ADMIN_USER=$(grep -E "^ADMIN_USERNAME=|^ADMIN_USER=" .env | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
-        ADMIN_PASS=$(grep -E "^ADMIN_PASSWORD=|^ADMIN_PASS=" .env | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+        ADMIN_USER=$(grep "^SUDO_USERNAME=" .env | cut -d '=' -f2 | tr -d '"' | tr -d "'" | head -1)
+        ADMIN_PASS=$(grep "^SUDO_PASSWORD=" .env | cut -d '=' -f2 | tr -d '"' | tr -d "'" | head -1)
+    fi
+fi
+
+# If still not found, try alternative names
+if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
+    if [ -f .env.marzban ]; then
+        ADMIN_USER=$(grep -E "^ADMIN_USERNAME=|^ADMIN_USER=" .env.marzban | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+        ADMIN_PASS=$(grep -E "^ADMIN_PASSWORD=|^ADMIN_PASS=" .env.marzban | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
     fi
 fi
 
 # If still not found, try to get from Marzban container environment
 if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
     echo "🔍 Поиск учетных данных в контейнере Marzban..."
-    ADMIN_USER=$(docker exec anomaly-marzban env | grep -E "ADMIN_USERNAME|ADMIN_USER" | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
-    ADMIN_PASS=$(docker exec anomaly-marzban env | grep -E "ADMIN_PASSWORD|ADMIN_PASS" | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    ADMIN_USER=$(docker exec anomaly-marzban env 2>/dev/null | grep -E "SUDO_USERNAME|ADMIN_USERNAME" | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'" || echo "")
+    ADMIN_PASS=$(docker exec anomaly-marzban env 2>/dev/null | grep -E "SUDO_PASSWORD|ADMIN_PASSWORD" | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'" || echo "")
 fi
 
-# If still not found, try marzban-cli to get admin info
+# If still not found, use interactive prompt
 if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
-    echo "🔍 Попытка использовать marzban-cli для получения информации..."
-    # Try common default username
-    ADMIN_USER="admin"
-    # Try to get password from marzban-cli or use interactive prompt
     echo "⚠️  Учетные данные не найдены автоматически"
-    echo "💡 Попробуйте вручную:"
-    echo "   docker exec -it anomaly-marzban marzban-cli admin login"
+    echo "💡 Убедитесь, что в .env.marzban указаны:"
+    echo "   SUDO_USERNAME=root"
+    echo "   SUDO_PASSWORD=ваш_пароль"
     echo ""
-    echo "Или укажите учетные данные:"
-    read -p "Имя пользователя (по умолчанию: admin): " input_user
-    ADMIN_USER="${input_user:-admin}"
+    echo "Или укажите учетные данные вручную:"
+    read -p "Имя пользователя (по умолчанию: root): " input_user
+    ADMIN_USER="${input_user:-root}"
     read -sp "Пароль: " ADMIN_PASS
     echo ""
 fi
 
 if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
     echo "❌ Не найдены учетные данные администратора"
-    echo "💡 Убедитесь, что в .env.marzban или .env указаны:"
-    echo "   ADMIN_USERNAME=ваш_логин"
-    echo "   ADMIN_PASSWORD=ваш_пароль"
+    echo "💡 Убедитесь, что в .env.marzban указаны:"
+    echo "   SUDO_USERNAME=root"
+    echo "   SUDO_PASSWORD=ваш_пароль"
     exit 1
 fi
 
