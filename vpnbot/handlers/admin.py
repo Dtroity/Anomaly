@@ -35,7 +35,10 @@ class AdminStates(StatesGroup):
 
 def is_admin(telegram_id: int) -> bool:
     """Check if user is admin"""
-    return telegram_id in settings.admin_ids_list
+    admin_ids = settings.admin_ids_list
+    is_admin_user = telegram_id in admin_ids
+    logger.info(f"Admin check for {telegram_id}: {is_admin_user}, admin_ids: {admin_ids}")
+    return is_admin_user
 
 
 @router.message(Command("admin"))

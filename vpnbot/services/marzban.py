@@ -339,8 +339,15 @@ class MarzbanService:
             if subscription_url:
                 # If URL is relative, make it absolute
                 if subscription_url.startswith("/"):
-                    base_url = self.api_url.rstrip('/')
+                    # Use public API URL (api.anomaly-connect.online) instead of internal
+                    # This ensures subscription works through Nginx proxy
+                    base_url = "https://api.anomaly-connect.online"
                     return f"{base_url}{subscription_url}"
+                
+                # If URL is already absolute, ensure it uses HTTPS
+                if subscription_url.startswith("http://"):
+                    subscription_url = subscription_url.replace("http://", "https://", 1)
+                
                 return subscription_url
             
             return None

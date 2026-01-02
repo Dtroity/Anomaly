@@ -95,6 +95,10 @@ async def cmd_start(message: Message):
         
         welcome_text += "Выберите действие:"
         
+        # Add admin hint if user is admin
+        if is_admin_user:
+            welcome_text += "\n\n🔐 Вы администратор. Используйте /admin для панели управления."
+        
         await message.answer(
             welcome_text,
             reply_markup=get_user_keyboard(show_trial=show_trial)
@@ -194,11 +198,12 @@ async def callback_connect(callback: CallbackQuery):
             subscription = marzban_user.get("subscription_url") or await marzban.get_subscription_url(username)
             
             if subscription:
-                # Format message with clickable link for better UX on all devices
+                # Format message with highlighted clickable link using HTML
+                # Use HTML to make link blue and clickable on all devices
                 connection_text = (
                     f"✅ Подключение готово!\n\n"
                     f"📱 Ваш ключ доступа:\n"
-                    f"{subscription}\n\n"
+                    f'<a href="{subscription}">{subscription}</a>\n\n'
                     f"📊 Статус:\n"
                     f"• Действует до: {user.expires_at.strftime('%d.%m.%Y %H:%M') if user.expires_at else 'Не ограничено'}\n"
                     f"• Трафик: {user.used_traffic_gb:.2f} / {user.traffic_limit_gb:.2f} GB\n"
@@ -215,7 +220,7 @@ async def callback_connect(callback: CallbackQuery):
                 await callback.message.edit_text(
                     connection_text,
                     reply_markup=keyboard,
-                    parse_mode=None  # Plain text so link is automatically clickable
+                    parse_mode="HTML"  # HTML mode for colored clickable links
                 )
             else:
                 await callback.answer("Ошибка получения ключа", show_alert=True)
