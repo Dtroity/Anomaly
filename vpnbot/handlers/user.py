@@ -198,9 +198,9 @@ async def callback_connect(callback: CallbackQuery):
             user.last_active = datetime.utcnow()
             db.commit()
             
-            # Get connection link (subscription URL) - always get fresh URL
-            # Use v2ray client type for better compatibility with V2RayTun and other V2Ray clients
-            subscription = marzban_user.get("subscription_url") or await marzban.get_subscription_url(username, client_type="v2ray")
+            # Get connection link (subscription URL) - always use get_subscription_url with v2ray client type
+            # This ensures the URL is properly formatted with /v2ray endpoint for V2Ray clients
+            subscription = await marzban.get_subscription_url(username, client_type="v2ray")
             
             if subscription:
                 # Format message with highlighted clickable link using HTML
@@ -254,6 +254,10 @@ async def callback_connect(callback: CallbackQuery):
 @router.callback_query(F.data == "status")
 async def callback_status(callback: CallbackQuery):
     """Handle status button"""
+    # Check if user is admin
+    from handlers.admin import is_admin as check_admin
+    is_admin_user = check_admin(callback.from_user.id)
+    
     with get_db_context() as db:
         user = db.query(User).filter(User.telegram_id == callback.from_user.id).first()
         
@@ -261,9 +265,12 @@ async def callback_status(callback: CallbackQuery):
             await callback.answer("Пользователь не найден", show_alert=True)
             return
         
+        # Show ADMIN role if user is admin, otherwise show database role
+        role_display = "ADMIN" if is_admin_user else user.role.value
+        
         status_text = (
             f"📊 Ваш статус\n\n"
-            f"👤 Роль: {user.role.value}\n"
+            f"👤 Роль: {role_display}\n"
             f"📅 Подписка до: {user.expires_at.strftime('%d.%m.%Y %H:%M') if user.expires_at else 'Не ограничено'}\n"
             f"📊 Трафик: {user.used_traffic_gb:.2f} / {user.traffic_limit_gb:.2f} GB\n"
             f"📱 Устройства: до {user.max_devices}\n"

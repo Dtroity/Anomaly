@@ -352,6 +352,7 @@ class MarzbanService:
                     base_url = "https://api.anomaly-connect.online"
                     if client_type == "v2ray":
                         # Use /v2ray endpoint for V2Ray clients (V2RayTun, v2rayNG, etc.)
+                        # This ensures proper subscription format for V2Ray clients
                         return f"{base_url}/sub/{token}/v2ray"
                     return f"{base_url}{subscription_url}"
                 
@@ -359,10 +360,17 @@ class MarzbanService:
                 if subscription_url.startswith("http://"):
                     subscription_url = subscription_url.replace("http://", "https://", 1)
                 
-                # For absolute URLs, try to add /v2ray if it's a V2Ray client
+                # For absolute URLs, extract token and rebuild with /v2ray endpoint if needed
                 if client_type == "v2ray" and "/v2ray" not in subscription_url:
-                    # Check if it ends with token, add /v2ray
-                    if subscription_url.endswith("/") or not subscription_url.endswith("/v2ray"):
+                    # Extract token from absolute URL (format: https://domain/sub/token or https://domain/sub/token/)
+                    import re
+                    match = re.search(r'/sub/([^/]+)', subscription_url)
+                    if match:
+                        token = match.group(1)
+                        base_url = "https://api.anomaly-connect.online"
+                        return f"{base_url}/sub/{token}/v2ray"
+                    # If pattern doesn't match, try to add /v2ray at the end
+                    if not subscription_url.endswith("/v2ray"):
                         subscription_url = subscription_url.rstrip("/") + "/v2ray"
                 
                 return subscription_url
