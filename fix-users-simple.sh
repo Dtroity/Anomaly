@@ -232,7 +232,8 @@ try:
         response_text = response.read().decode('utf-8')
         result = json.loads(response_text)
         users = result.get('users', [])
-        print(json.dumps(users))
+        # Ensure we output valid JSON array
+        print(json.dumps(users, ensure_ascii=False))
 except urllib.error.HTTPError as e:
     error_body = e.read().decode('utf-8') if e.fp else ''
     print(f'HTTP_ERROR: {e.code} - {error_body}', file=sys.stderr)
