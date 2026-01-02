@@ -251,13 +251,42 @@ except Exception as e:
 
 FIXED_COUNT=0
 
+# Check if USERS contains error
+if echo "$USERS" | grep -q "ERROR\|HTTP_ERROR\|JSON_ERROR"; then
+    echo "❌ Ошибка при получении списка пользователей:"
+    echo "$USERS" | grep -E "ERROR|HTTP_ERROR|JSON_ERROR" | head -3
+    echo ""
+    echo "💡 Попробуйте проверить токен и доступность API вручную"
+    exit 1
+fi
+
+# Check if USERS is empty or invalid JSON
+if [ -z "$USERS" ] || [ "$USERS" = "[]" ]; then
+    echo "⚠️  Список пользователей пуст или не получен"
+    echo "💡 Возможно, в Marzban нет пользователей"
+    exit 0
+fi
+
 echo "$USERS" | python3 -c "
 import sys
 import json
 import urllib.request
 import urllib.parse
 
-users = json.load(sys.stdin)
+try:
+    users = json.load(sys.stdin)
+    if not isinstance(users, list):
+        print(f'ERROR: Expected list, got {type(users).__name__}', file=sys.stderr)
+        sys.exit(1)
+except json.JSONDecodeError as e:
+    print(f'ERROR: JSON decode error: {str(e)}', file=sys.stderr)
+    input_data = sys.stdin.read()
+    print(f'Input was: {input_data[:200]}', file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f'ERROR: {str(e)}', file=sys.stderr)
+    sys.exit(1)
+
 fixed = 0
 
 for user in users:
