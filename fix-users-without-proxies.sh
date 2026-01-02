@@ -80,22 +80,49 @@ if [ -f .env.marzban ]; then
     fi
 fi
 
-# Try to get token from container's internal network
+# Try to get token using Python (curl may not be available in container)
 CONTAINER_API_URL="http://marzban:62050"
-if docker exec anomaly-marzban curl -s -f "${CONTAINER_API_URL}/api/system" >/dev/null 2>&1; then
-    echo "   Используется внутренний URL контейнера: ${CONTAINER_API_URL}"
-    TOKEN_RESPONSE=$(docker exec anomaly-marzban curl -s -X POST "${CONTAINER_API_URL}/api/admin/token" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "username=${ADMIN_USER}&password=${ADMIN_PASS}" 2>/dev/null)
-else
-    echo "   Используется внешний URL: ${API_URL}"
+echo "   Попытка получить токен через Python..."
+
+TOKEN_RESPONSE=$(docker exec anomaly-marzban python3 -c "
+import urllib.request
+import urllib.parse
+import json
+import sys
+
+try:
+    url = '${CONTAINER_API_URL}/api/admin/token'
+    data = urllib.parse.urlencode({
+        'username': '${ADMIN_USER}',
+        'password': '${ADMIN_PASS}'
+    }).encode('utf-8')
+    
+    req = urllib.request.Request(url, data=data, method='POST')
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+    
+    with urllib.request.urlopen(req, timeout=5) as response:
+        result = json.loads(response.read().decode('utf-8'))
+        print(json.dumps(result))
+except Exception as e:
+    print(f'ERROR: {str(e)}', file=sys.stderr)
+    sys.exit(1)
+" 2>/dev/null)
+
+# If Python method failed, try from host
+if [ -z "$TOKEN_RESPONSE" ] || echo "$TOKEN_RESPONSE" | grep -q "ERROR"; then
+    echo "   Попытка получить токен с хоста..."
     TOKEN_RESPONSE=$(curl -s -X POST "${API_URL}/api/admin/token" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "username=${ADMIN_USER}&password=${ADMIN_PASS}" 2>/dev/null)
 fi
 
 # Extract token from response
-TOKEN=$(echo "$TOKEN_RESPONSE" | grep -oP '"access_token":"\K[^"]+' | head -1)
+TOKEN=$(echo "$TOKEN_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token', ''))" 2>/dev/null)
+
+# Fallback to grep if Python fails
+if [ -z "$TOKEN" ]; then
+    TOKEN=$(echo "$TOKEN_RESPONSE" | grep -oP '"access_token":"\K[^"]+' | head -1)
+fi
 
 if [ -z "$TOKEN" ]; then
     echo "❌ Не удалось получить токен администратора"
@@ -105,10 +132,8 @@ if [ -z "$TOKEN" ]; then
     echo "   1. Учетные данные в .env.marzban:"
     echo "      SUDO_USERNAME=$ADMIN_USER"
     echo "      SUDO_PASSWORD=***"
-    echo "   2. Доступность Marzban API:"
-    echo "      curl -s ${API_URL}/api/system"
-    echo "   3. Попробуйте получить токен вручную:"
-    echo "      curl -X POST ${API_URL}/api/admin/token -d 'username=${ADMIN_USER}&password=ВАШ_ПАРОЛЬ'"
+    echo "   2. Попробуйте получить токен вручную с хоста:"
+    echo "      curl -X POST http://localhost:62050/api/admin/token -d 'username=${ADMIN_USER}&password=ВАШ_ПАРОЛЬ'"
     exit 1
 fi
 
