@@ -205,8 +205,66 @@ class MarzbanService:
             username: Username to update
             data_limit: Data limit in bytes (not GB)
             expire_date: Expiration date
-            proxies: Proxy configuration
+            proxies: Proxy configuration (if None and user has no proxies, will add them)
         """
+        # First, get current user to check if they have proxies
+        current_user = await self.get_user(username)
+        if not current_user:
+            raise Exception(f"User {username} not found")
+        
+        # If user has no proxies and none provided, add them
+        user_proxies = current_user.get("proxies", {})
+        if not user_proxies and proxies is None:
+            # User has no proxies, need to add them
+            try:
+                inbounds = await self._request("GET", "/inbounds")
+                if not isinstance(inbounds, dict):
+                    inbounds = {}
+                
+                # Try protocols in order: vmess, vless, trojan, shadowsocks
+                if "vmess" in inbounds and inbounds.get("vmess"):
+                    proxies = {
+                        "vmess": {
+                            "id": str(uuid.uuid4())
+                        }
+                    }
+                elif "vless" in inbounds and inbounds.get("vless"):
+                    proxies = {
+                        "vless": {
+                            "id": str(uuid.uuid4()),
+                            "flow": ""
+                        }
+                    }
+                elif "trojan" in inbounds and inbounds.get("trojan"):
+                    proxies = {
+                        "trojan": {
+                            "password": str(uuid.uuid4())
+                        }
+                    }
+                elif "shadowsocks" in inbounds and inbounds.get("shadowsocks"):
+                    proxies = {
+                        "shadowsocks": {
+                            "password": str(uuid.uuid4()),
+                            "method": "chacha20-ietf-poly1305"
+                        }
+                    }
+                else:
+                    logger.error("No proxy protocols available in Marzban")
+                    raise Exception(
+                        "No proxy protocols available. Please configure inbounds in Marzban panel: "
+                        "https://panel.anomaly-connect.online -> Settings -> Inbounds"
+                    )
+            except Exception as e:
+                error_msg = str(e)
+                if "No proxy protocols available" in error_msg:
+                    raise
+                logger.warning(f"Could not get inbounds: {e}")
+                raise Exception(
+                    f"Could not determine available protocols: {error_msg}. "
+                    "Please configure inbounds in Marzban panel: "
+                    "https://panel.anomaly-connect.online -> Settings -> Inbounds"
+                )
+        
         payload = {}
         
         if data_limit is not None:
