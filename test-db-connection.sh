@@ -39,6 +39,15 @@ echo "$DIR_CHECK" | sed 's/^/      /'
 
 echo ""
 echo "4️⃣  Проверка импорта модулей базы данных..."
+# Сначала проверим, что файлы существуют
+echo "   📁 Проверка наличия файлов..."
+FILE_CHECK=$(docker exec anomaly-marzban sh -c "
+ls -la /code/app/db/__init__.py 2>&1
+ls -la /code/app/db/models.py 2>&1
+ls -la /code/config.py 2>&1
+" 2>&1)
+echo "$FILE_CHECK" | sed 's/^/      /'
+
 IMPORT_TEST=$(docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
 import sys
 import os
@@ -52,12 +61,20 @@ for path in paths_to_try:
 
 print(f"Python path: {sys.path[:3]}")
 
+# Проверить наличие config
+try:
+    import config
+    print("SUCCESS: config module imported")
+except Exception as e:
+    print(f"WARNING: config import failed - {type(e).__name__}: {str(e)}")
+
 try:
     from app.db import GetDB
     print("SUCCESS: GetDB imported")
 except Exception as e:
     print(f"ERROR: GetDB import failed - {type(e).__name__}: {str(e)}")
     import traceback
+    print("Full traceback:")
     traceback.print_exc()
     sys.exit(1)
 
@@ -67,6 +84,7 @@ try:
 except Exception as e:
     print(f"ERROR: Models import failed - {type(e).__name__}: {str(e)}")
     import traceback
+    print("Full traceback:")
     traceback.print_exc()
     sys.exit(1)
 PYTHON_SCRIPT
