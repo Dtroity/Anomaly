@@ -40,12 +40,25 @@ try:
             print(f"SUCCESS: TLS сертификат найден")
             print(f"Certificate length: {len(tls.certificate)}")
             print(f"Key length: {len(tls.key)}")
-            if tls.certificate.startswith("-----BEGIN"):
-                print("Certificate format: Valid PEM")
+            if tls.certificate and len(tls.certificate) > 0:
+                if tls.certificate.startswith("-----BEGIN"):
+                    print("Certificate format: Valid PEM")
+                    print(f"Certificate preview: {tls.certificate[:100]}...")
+                else:
+                    print("Certificate format: Invalid (does not start with -----BEGIN)")
+                    print(f"Certificate preview: {tls.certificate[:100]}...")
             else:
-                print("Certificate format: Invalid")
+                print("ERROR: Certificate is empty")
+            if tls.key and len(tls.key) > 0:
+                if tls.key.startswith("-----BEGIN"):
+                    print("Key format: Valid PEM")
+                else:
+                    print("Key format: Invalid (does not start with -----BEGIN)")
+            else:
+                print("WARNING: Key is empty")
         else:
             print("ERROR: TLS сертификат не найден в базе данных")
+            print("INFO: Попробуйте запустить: ./fix-node-cert-in-db.sh /tmp/node-cert.pem")
             sys.exit(1)
 except Exception as e:
     print(f"ERROR: {type(e).__name__}: {str(e)}")
@@ -58,8 +71,15 @@ PYTHON_SCRIPT
 if echo "$TLS_CHECK" | grep -q "SUCCESS"; then
     echo "$TLS_CHECK" | sed 's/^/   /'
 else
-    echo "   ❌ $TLS_CHECK"
-    exit 1
+    echo "   ❌ Проблема с TLS сертификатом:"
+    echo "$TLS_CHECK" | sed 's/^/      /'
+    echo ""
+    echo "   💡 Попробуйте переустановить сертификат:"
+    echo "      1. Скопируйте сертификат из панели Marzban"
+    echo "      2. Сохраните в файл: nano /tmp/node-cert.pem"
+    echo "      3. Запустите: ./fix-node-cert-in-db.sh /tmp/node-cert.pem"
+    echo ""
+    # Не выходим, продолжаем диагностику
 fi
 
 echo ""
