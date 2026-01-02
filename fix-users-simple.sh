@@ -112,12 +112,16 @@ import urllib.request
 import json
 import sys
 
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
 try:
-    url = 'http://marzban:62050/api/inbounds'
+    url = 'https://marzban:62050/api/inbounds'
     req = urllib.request.Request(url)
     req.add_header('Authorization', 'Bearer ${TOKEN}')
     
-    with urllib.request.urlopen(req, timeout=5) as response:
+    with urllib.request.urlopen(req, timeout=5, context=ssl_context) as response:
         result = json.loads(response.read().decode('utf-8'))
         print(json.dumps(result))
 except Exception as e:
@@ -154,12 +158,16 @@ import urllib.request
 import json
 import sys
 
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
 try:
-    url = 'http://marzban:62050/api/users'
+    url = 'https://marzban:62050/api/users'
     req = urllib.request.Request(url)
     req.add_header('Authorization', 'Bearer ${TOKEN}')
     
-    with urllib.request.urlopen(req, timeout=5) as response:
+    with urllib.request.urlopen(req, timeout=5, context=ssl_context) as response:
         result = json.loads(response.read().decode('utf-8'))
         print(json.dumps(result.get('users', [])))
 except Exception as e:
@@ -187,15 +195,20 @@ for user in users:
         
         # Add proxies
         proxy_config = json.loads('${PROXY_CONFIG}')
+        import ssl
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
         try:
-            url = f'http://marzban:62050/api/user/{username}'
+            url = f'https://marzban:62050/api/user/{username}'
             data = json.dumps({'proxies': proxy_config}).encode('utf-8')
             
             req = urllib.request.Request(url, data=data, method='PUT')
             req.add_header('Authorization', 'Bearer ${TOKEN}')
             req.add_header('Content-Type', 'application/json')
             
-            with urllib.request.urlopen(req, timeout=5) as response:
+            with urllib.request.urlopen(req, timeout=5, context=ssl_context) as response:
                 result = json.loads(response.read().decode('utf-8'))
                 if result.get('username') == username:
                     print(f'   ✅ Proxies добавлены')
