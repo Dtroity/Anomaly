@@ -6,21 +6,21 @@ echo "====================================="
 echo ""
 
 # Проверка, на каком сервере запущен скрипт
-IS_NODE_SERVER=false
-if [ -f docker-compose.node.yml ]; then
-    IS_NODE_SERVER=true
-fi
+# Control Server имеет docker-compose.yml (основной файл)
+# Node Server имеет только docker-compose.node.yml
 
-if [ "$IS_NODE_SERVER" = true ]; then
+if [ ! -f docker-compose.yml ]; then
     echo "⚠️  Этот скрипт должен быть запущен на Control Server (VPS #1)"
     echo ""
     echo "💡 Выполните на Control Server:"
     echo "   cd /opt/Anomaly"
     echo "   ./check-node-connection-from-control.sh"
     echo ""
-    echo "Или проверьте ноду напрямую:"
-    echo "   docker logs anomaly-node --tail=50"
-    echo "   docker exec anomaly-node ls -la /var/lib/marzban-node/node-certs/"
+    if [ -f docker-compose.node.yml ]; then
+        echo "Или проверьте ноду напрямую:"
+        echo "   docker logs anomaly-node --tail=50"
+        echo "   docker exec anomaly-node ls -la /var/lib/marzban-node/node-certs/"
+    fi
     exit 1
 fi
 
