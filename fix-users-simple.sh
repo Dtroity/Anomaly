@@ -41,16 +41,23 @@ fi
 
 echo "✅ Учетные данные получены"
 
-# Get token using Python
+# Get token using Python (Marzban uses HTTPS)
 echo "🔐 Получение токена администратора..."
 TOKEN_RESPONSE=$(docker exec anomaly-marzban python3 -c "
 import urllib.request
 import urllib.parse
 import json
 import sys
+import ssl
+
+# Disable SSL verification for internal requests
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
 
 try:
-    url = 'http://marzban:62050/api/admin/token'
+    # Marzban uses HTTPS
+    url = 'https://marzban:62050/api/admin/token'
     data = urllib.parse.urlencode({
         'username': '${ADMIN_USER}',
         'password': '${ADMIN_PASS}'
@@ -59,7 +66,7 @@ try:
     req = urllib.request.Request(url, data=data, method='POST')
     req.add_header('Content-Type', 'application/x-www-form-urlencoded')
     
-    with urllib.request.urlopen(req, timeout=5) as response:
+    with urllib.request.urlopen(req, timeout=5, context=ssl_context) as response:
         result = json.loads(response.read().decode('utf-8'))
         print(json.dumps(result))
 except urllib.error.HTTPError as e:
