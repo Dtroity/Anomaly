@@ -348,12 +348,12 @@ class MarzbanService:
                     # Remove leading slash and trailing slash if present
                     token = subscription_url.strip("/").replace("/sub/", "").replace("sub/", "")
                     # Use public API URL with client type for better compatibility
-                    # For V2Ray clients, use /v2ray endpoint
                     base_url = "https://api.anomaly-connect.online"
                     if client_type == "v2ray":
-                        # Use /v2ray endpoint for V2Ray clients (V2RayTun, v2rayNG, etc.)
-                        # This ensures proper subscription format for V2Ray clients
-                        return f"{base_url}/sub/{token}/v2ray"
+                        # For V2RayTun on iPhone, use base subscription URL (without /v2ray)
+                        # V2RayTun automatically detects the format from User-Agent or content
+                        # The /v2ray endpoint may cause issues with some clients
+                        return f"{base_url}/sub/{token}"
                     return f"{base_url}{subscription_url}"
                 
                 # If URL is already absolute, ensure it uses HTTPS
