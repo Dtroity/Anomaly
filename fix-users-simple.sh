@@ -111,6 +111,7 @@ INBOUNDS=$(docker exec anomaly-marzban python3 -c "
 import urllib.request
 import json
 import sys
+import ssl
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
