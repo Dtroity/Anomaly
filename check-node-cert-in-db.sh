@@ -17,33 +17,53 @@ echo ""
 echo "📋 Проверка информации о ноде в базе данных..."
 NODE_INFO=$(docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
 import sys
+import os
 sys.path.insert(0, '/code')
-from app.db import GetDB
-from app.db.models import Node, TLS
 
-with GetDB() as db:
-    node = db.query(Node).filter(Node.name == "Node 1").first()
-    if node:
-        print(f"Node ID: {node.id}")
-        print(f"Name: {node.name}")
-        print(f"Address: {node.address}")
-        print(f"Port: {node.port}")
-        print(f"API Port: {node.api_port}")
-        print(f"Status: {node.status}")
-        print(f"Message: {node.message}")
-        
-        # Проверить TLS сертификаты
-        tls = db.query(TLS).first()
-        if tls:
-            print(f"\nTLS Certificate length: {len(tls.certificate)}")
-            print(f"TLS Key length: {len(tls.key)}")
-            print(f"TLS Certificate preview: {tls.certificate[:100]}...")
+try:
+    from app.db import GetDB
+    from app.db.models import Node, TLS
+    
+    with GetDB() as db:
+        node = db.query(Node).filter(Node.name == "Node 1").first()
+        if node:
+            print(f"Node ID: {node.id}")
+            print(f"Name: {node.name}")
+            print(f"Address: {node.address}")
+            print(f"Port: {node.port}")
+            print(f"API Port: {node.api_port}")
+            print(f"Status: {node.status}")
+            print(f"Message: {node.message}")
+            
+            # Проверить TLS сертификаты
+            tls = db.query(TLS).first()
+            if tls:
+                print(f"\nTLS Certificate length: {len(tls.certificate)}")
+                print(f"TLS Key length: {len(tls.key)}")
+                print(f"TLS Certificate preview: {tls.certificate[:100]}...")
+                if tls.certificate.startswith("-----BEGIN"):
+                    print("✅ TLS Certificate format: Valid PEM")
+                else:
+                    print("⚠️  TLS Certificate format: May be invalid")
+            else:
+                print("\n⚠️  TLS сертификаты не найдены в базе данных")
+                print("   💡 Нужно скачать сертификат из панели Marzban")
         else:
-            print("\n⚠️  TLS сертификаты не найдены в базе данных")
-    else:
-        print("❌ Нода 'Node 1' не найдена в базе данных")
+            print("❌ Нода 'Node 1' не найдена в базе данных")
+            # Попробовать найти любую ноду
+            all_nodes = db.query(Node).all()
+            if all_nodes:
+                print(f"\nНайдено нод: {len(all_nodes)}")
+                for n in all_nodes:
+                    print(f"  - {n.name}: {n.address}:{n.port}")
+            else:
+                print("\n⚠️  Ноды не найдены в базе данных")
+except Exception as e:
+    print(f"ERROR: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 PYTHON_SCRIPT
-2>/dev/null)
+2>&1)
 
 if [ -n "$NODE_INFO" ]; then
     echo "$NODE_INFO" | sed 's/^/   /'
