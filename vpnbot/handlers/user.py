@@ -194,10 +194,11 @@ async def callback_connect(callback: CallbackQuery):
             subscription = marzban_user.get("subscription_url") or await marzban.get_subscription_url(username)
             
             if subscription:
+                # Format message with clickable link for better UX on all devices
                 connection_text = (
                     f"✅ Подключение готово!\n\n"
                     f"📱 Ваш ключ доступа:\n"
-                    f"`{subscription}`\n\n"
+                    f"{subscription}\n\n"
                     f"📊 Статус:\n"
                     f"• Действует до: {user.expires_at.strftime('%d.%m.%Y %H:%M') if user.expires_at else 'Не ограничено'}\n"
                     f"• Трафик: {user.used_traffic_gb:.2f} / {user.traffic_limit_gb:.2f} GB\n"
@@ -205,10 +206,16 @@ async def callback_connect(callback: CallbackQuery):
                     f"💡 Инструкция по настройке: /help"
                 )
                 
+                # Create keyboard with copy button for convenience
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="📋 Копировать ссылку", url=subscription)],
+                    *get_user_keyboard().inline_keyboard
+                ])
+                
                 await callback.message.edit_text(
                     connection_text,
-                    reply_markup=get_user_keyboard(),
-                    parse_mode="Markdown"
+                    reply_markup=keyboard,
+                    parse_mode=None  # Plain text so link is automatically clickable
                 )
             else:
                 await callback.answer("Ошибка получения ключа", show_alert=True)
