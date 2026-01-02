@@ -8,12 +8,12 @@ cd /opt/Anomaly || exit 1
 
 # Check if Marzban uses HTTPS
 echo "📋 Проверка протокола Marzban..."
-MARZBAN_SSL_CERT=$(docker exec anomaly-marzban env | grep "UVICORN_SSL_CERTFILE" | cut -d'=' -f2 || echo "")
+MARZBAN_SSL_CERT=$(docker exec anomaly-marzban env | grep "UVICORN_SSL_CERTFILE" | cut -d'=' -f2 | tr -d ' ' || echo "")
 
-if [ -n "$MARZBAN_SSL_CERT" ] && [ "$MARZBAN_SSL_CERT" != "" ]; then
-    echo "✅ Marzban использует HTTPS"
+if [ -n "$MARZBAN_SSL_CERT" ] && [ "$MARZBAN_SSL_CERT" != "" ] && [ "$MARZBAN_SSL_CERT" != "''" ]; then
+    echo "✅ Marzban использует HTTPS (сертификат: $MARZBAN_SSL_CERT)"
     PROXY_PASS="https://marzban:62050/sub/"
-    PROXY_SSL="proxy_ssl_verify off;"
+    PROXY_SSL="proxy_ssl_verify off;\n        proxy_ssl_server_name on;"
 else
     echo "✅ Marzban использует HTTP"
     PROXY_PASS="http://marzban:62050/sub/"
@@ -30,16 +30,18 @@ cp nginx/conf.d/default.conf nginx/conf.d/default.conf.backup.$(date +%Y%m%d_%H%
 # Update subscription location block
 sed -i "s|proxy_pass http://marzban:62050/sub/;|proxy_pass ${PROXY_PASS};|" nginx/conf.d/default.conf
 
-# Add SSL settings if needed
+# Add SSL settings if needed (using printf for newlines)
 if [ -n "$PROXY_SSL" ]; then
     if ! grep -q "proxy_ssl_verify" nginx/conf.d/default.conf; then
-        sed -i "/proxy_set_header X-Forwarded-Proto \$scheme;/a\\    ${PROXY_SSL}" nginx/conf.d/default.conf
+        # Use a temporary file for multi-line insertion
+        awk -v ssl="$PROXY_SSL" '/proxy_set_header X-Forwarded-Proto \$scheme;/ {print; gsub(/\\\\n/, "\n", ssl); print "        " ssl; next}1' nginx/conf.d/default.conf > nginx/conf.d/default.conf.tmp
+        mv nginx/conf.d/default.conf.tmp nginx/conf.d/default.conf
     fi
 fi
 
 # Add timeout settings
 if ! grep -q "proxy_connect_timeout" nginx/conf.d/default.conf; then
-    sed -i "/proxy_set_header X-Forwarded-Proto \$scheme;/a\\    proxy_connect_timeout 60s;\n    proxy_send_timeout 60s;\n    proxy_read_timeout 60s;" nginx/conf.d/default.conf
+    sed -i '/proxy_set_header X-Forwarded-Proto $scheme;/a\        proxy_connect_timeout 60s;\n        proxy_send_timeout 60s;\n        proxy_read_timeout 60s;' nginx/conf.d/default.conf
 fi
 
 echo "✅ Конфигурация обновлена"
