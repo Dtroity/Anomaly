@@ -112,26 +112,27 @@ class MarzbanService:
                 available_protocols = list(inbounds.keys()) if inbounds else []
                 
                 # Try protocols in order: vmess, vless, trojan, shadowsocks
-                if "vmess" in available_protocols and inbounds.get("vmess"):
+                # inbounds is a dict like {"vmess": [...], "vless": [...]}
+                if "vmess" in inbounds and inbounds.get("vmess"):
                     proxies = {
                         "vmess": {
                             "id": str(uuid.uuid4())
                         }
                     }
-                elif "vless" in available_protocols and inbounds.get("vless"):
+                elif "vless" in inbounds and inbounds.get("vless"):
                     proxies = {
                         "vless": {
                             "id": str(uuid.uuid4()),
                             "flow": ""
                         }
                     }
-                elif "trojan" in available_protocols and inbounds.get("trojan"):
+                elif "trojan" in inbounds and inbounds.get("trojan"):
                     proxies = {
                         "trojan": {
                             "password": str(uuid.uuid4())
                         }
                     }
-                elif "shadowsocks" in available_protocols and inbounds.get("shadowsocks"):
+                elif "shadowsocks" in inbounds and inbounds.get("shadowsocks"):
                     proxies = {
                         "shadowsocks": {
                             "password": str(uuid.uuid4()),

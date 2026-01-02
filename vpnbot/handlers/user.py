@@ -220,13 +220,14 @@ async def callback_connect(callback: CallbackQuery):
                     "https://panel.anomaly-connect.online"
                 )
             else:
-                # Limit error message to 200 characters to avoid MESSAGE_TOO_LONG
-                user_msg = f"Ошибка подключения: {error_msg[:200]}"
+                # Limit error message to 150 characters to avoid MESSAGE_TOO_LONG
+                # Telegram alert messages have a limit of 200 characters, but we use 150 to be safe
+                user_msg = f"Ошибка: {error_msg[:120]}"
             
             # Telegram alert messages have a limit of 200 characters
-            # Truncate if necessary
-            if len(user_msg) > 200:
-                user_msg = user_msg[:197] + "..."
+            # Truncate if necessary (use 150 to be safe)
+            if len(user_msg) > 150:
+                user_msg = user_msg[:147] + "..."
             
             await callback.answer(user_msg, show_alert=True)
 
