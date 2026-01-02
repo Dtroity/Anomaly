@@ -137,21 +137,21 @@ if [ -n "$INBOUNDS" ] && ! echo "$INBOUNDS" | grep -q "ERROR"; then
 fi
 
 # Determine protocol - check if inbounds has vmess or vless
+# API returns: {"vmess": [{"tag": "...", "protocol": "vmess", ...}], "vless": [...]}
 HAS_VMESS=$(echo "$INBOUNDS" | python3 -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
     if isinstance(d, dict):
         vmess = d.get('vmess', [])
+        # Check if vmess is a list with at least one element
         if isinstance(vmess, list) and len(vmess) > 0:
-            print('yes')
-        elif vmess:
             print('yes')
         else:
             print('no')
     else:
         print('no')
-except:
+except Exception as e:
     print('no')
 " 2>/dev/null || echo "no")
 
@@ -161,15 +161,14 @@ try:
     d = json.load(sys.stdin)
     if isinstance(d, dict):
         vless = d.get('vless', [])
+        # Check if vless is a list with at least one element
         if isinstance(vless, list) and len(vless) > 0:
-            print('yes')
-        elif vless:
             print('yes')
         else:
             print('no')
     else:
         print('no')
-except:
+except Exception as e:
     print('no')
 " 2>/dev/null || echo "no")
 
