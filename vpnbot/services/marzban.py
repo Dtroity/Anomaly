@@ -199,11 +199,19 @@ class MarzbanService:
         expire_date: Optional[datetime] = None,
         proxies: Optional[Dict] = None
     ) -> Dict:
-        """Update user in Marzban"""
+        """Update user in Marzban
+        
+        Args:
+            username: Username to update
+            data_limit: Data limit in bytes (not GB)
+            expire_date: Expiration date
+            proxies: Proxy configuration
+        """
         payload = {}
         
         if data_limit is not None:
-            payload["data_limit"] = data_limit * 1024 * 1024 * 1024
+            # data_limit is already in bytes, pass directly
+            payload["data_limit"] = data_limit
         
         if expire_date is not None:
             payload["expire"] = int(expire_date.timestamp())

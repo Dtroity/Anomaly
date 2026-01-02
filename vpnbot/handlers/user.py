@@ -160,7 +160,7 @@ async def callback_connect(callback: CallbackQuery):
             marzban_user = await marzban.get_user(username)
             
             if not marzban_user:
-                # Create new user
+                # Create new user only if doesn't exist
                 expire_date = user.expires_at if user.expires_at else datetime.utcnow() + timedelta(days=30)
                 data_limit = int(user.traffic_limit_gb * 1024 * 1024 * 1024) if user.traffic_limit_gb > 0 else None
                 
@@ -169,6 +169,20 @@ async def callback_connect(callback: CallbackQuery):
                     data_limit=data_limit,
                     expire_date=expire_date
                 )
+            else:
+                # User exists - reuse existing user, just update limits if needed
+                expire_date = user.expires_at if user.expires_at else datetime.utcnow() + timedelta(days=30)
+                data_limit = int(user.traffic_limit_gb * 1024 * 1024 * 1024) if user.traffic_limit_gb > 0 else None
+                
+                # Update existing user's limits (update_user expects bytes, converts GB to bytes internally)
+                # But we pass bytes directly to match the API
+                await marzban.update_user(
+                    username=username,
+                    data_limit=data_limit,
+                    expire_date=expire_date
+                )
+                # Refresh user data to get updated subscription URL
+                marzban_user = await marzban.get_user(username)
             
             # Update user in database
             user.node_assigned = node["id"]
@@ -176,7 +190,7 @@ async def callback_connect(callback: CallbackQuery):
             user.last_active = datetime.utcnow()
             db.commit()
             
-            # Get connection link (subscription URL)
+            # Get connection link (subscription URL) - always get fresh URL
             subscription = marzban_user.get("subscription_url") or await marzban.get_subscription_url(username)
             
             if subscription:
@@ -577,9 +591,22 @@ async def callback_help(callback: CallbackQuery):
         f"❓ Помощь по использованию {settings.app_name}\n\n"
         f"📱 Как подключиться:\n"
         f"1. Нажмите кнопку «Подключиться»\n"
-        f"2. Скопируйте полученный ключ\n"
-        f"3. Установите клиент (например, v2rayNG для Android)\n"
-        f"4. Добавьте ключ в клиент\n\n"
+        f"2. Скопируйте полученный ключ (ссылка)\n"
+        f"3. Установите клиент для вашего устройства\n"
+        f"4. Добавьте ключ в клиент через подписку\n\n"
+        f"💻 Рекомендуемые клиенты:\n"
+        f"• Android: v2rayNG, Nekoray\n"
+        f"• iOS: Shadowrocket, v2rayU\n"
+        f"• Windows: v2rayN, Nekoray\n"
+        f"• macOS: ClashX, v2rayU\n"
+        f"• Linux: v2rayA, SingBox\n\n"
+        f"📝 Инструкция по настройке:\n"
+        f"1. Откройте клиент\n"
+        f"2. Найдите раздел «Подписка» или «Subscription»\n"
+        f"3. Нажмите «Добавить подписку» или «+»\n"
+        f"4. Вставьте скопированный ключ\n"
+        f"5. Обновите подписку\n"
+        f"6. Выберите сервер и подключитесь\n\n"
         f"💳 Как купить подписку:\n"
         f"1. Нажмите «Купить подписку»\n"
         f"2. Выберите тариф\n"
@@ -590,7 +617,11 @@ async def callback_help(callback: CallbackQuery):
         f"/status - Ваш статус\n"
         f"/buy - Купить подписку\n"
         f"/help - Эта справка\n\n"
-        f"💬 Поддержка: @your_support_username"
+        f"💬 Поддержка: @vizor360\n\n"
+        f"⚠️ Важно:\n"
+        f"• Ключ закреплен за вашим аккаунтом\n"
+        f"• Не передавайте ключ третьим лицам\n"
+        f"• При проблемах обращайтесь в поддержку"
     )
     
     await callback.message.edit_text(
