@@ -1,72 +1,140 @@
 #!/bin/bash
+# Полное исправление SSL подключения ноды Marzban
+# Решает ошибку: "Connection aborted. Remote end closed connection without response"
 
-# Скрипт для исправления SSL/TLS соединения с нодой
-
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$PROJECT_DIR"
-
-echo "🔧 Исправление SSL/TLS соединения с нодой"
-echo "=========================================="
+echo "🔧 Исправление SSL подключения ноды Marzban"
+echo "============================================"
+echo ""
+echo "Этот скрипт поможет исправить ошибку подключения ноды."
+echo "Ошибка: 'Connection aborted. Remote end closed connection without response'"
+echo ""
+echo "📋 Инструкция:"
+echo "=============="
+echo ""
+echo "1️⃣  На Control Server (VPS #1):"
+echo "   - Откройте панель: https://panel.anomaly-connect.online"
+echo "   - Перейдите в Nodes -> выберите ноду -> 'Скачать сертификат'"
+echo "   - Сохраните файл (например, в /tmp/node-cert.pem)"
+echo ""
+echo "2️⃣  На Node Server (VPS #2, 185.126.67.67):"
+echo "   - Подключитесь: ssh root@185.126.67.67"
+echo "   - Выполните команды ниже"
 echo ""
 
-NODE_IP="185.126.67.67"
-NODE_PORT="62050"
-
-# 1. Проверить подключение к ноде
-echo "🔍 Проверка подключения к ноде:"
-echo ""
-
-echo "  Тест 1: HTTP подключение (без SSL)..."
-HTTP_RESPONSE=$(timeout 5 curl -s -o /dev/null -w "%{http_code}" "http://${NODE_IP}:${NODE_PORT}/ping" 2>/dev/null || echo "000")
-if [ "$HTTP_RESPONSE" != "000" ] && [ "$HTTP_RESPONSE" != "" ]; then
-    echo "    ✅ HTTP доступен (код: $HTTP_RESPONSE)"
+# Проверка, на каком сервере запущен скрипт
+if [ -f docker-compose.node.yml ]; then
+    echo "✅ Обнаружен Node Server (docker-compose.node.yml найден)"
+    echo ""
+    
+    # Проверка наличия сертификата
+    if [ $# -gt 0 ] && [ -f "$1" ]; then
+        CERT_FILE="$1"
+        echo "📋 Установка сертификата из: $CERT_FILE"
+        
+        # Создать директории
+        mkdir -p /var/lib/marzban-node/ssl
+        mkdir -p node-certs
+        
+        # Скопировать сертификат
+        cp "$CERT_FILE" /var/lib/marzban-node/ssl/certificate.pem
+        cp "$CERT_FILE" node-certs/certificate.pem
+        chmod 644 /var/lib/marzban-node/ssl/certificate.pem
+        chmod 644 node-certs/certificate.pem
+        
+        echo "✅ Сертификат установлен"
+        echo ""
+    else
+        # Проверка существующего сертификата
+        if [ -f "/var/lib/marzban-node/ssl/certificate.pem" ]; then
+            echo "✅ Сертификат уже установлен: /var/lib/marzban-node/ssl/certificate.pem"
+        else
+            echo "❌ Сертификат не найден"
+            echo ""
+            echo "💡 Скачайте сертификат из панели Marzban и запустите:"
+            echo "   ./fix-node-ssl-connection.sh /путь/к/сертификату.pem"
+            exit 1
+        fi
+    fi
+    
+    # Обновить .env.node
+    echo "📋 Обновление .env.node..."
+    if [ ! -f .env.node ]; then
+        echo "⚠️  .env.node не найден, создаю..."
+        touch .env.node
+    fi
+    
+    # Обновить SSL_CLIENT_CERT_FILE
+    if ! grep -q "^SSL_CLIENT_CERT_FILE=" .env.node; then
+        echo "SSL_CLIENT_CERT_FILE=/var/lib/marzban-node/ssl/certificate.pem" >> .env.node
+        echo "  ✅ Добавлен SSL_CLIENT_CERT_FILE"
+    else
+        sed -i 's|^SSL_CLIENT_CERT_FILE=.*|SSL_CLIENT_CERT_FILE=/var/lib/marzban-node/ssl/certificate.pem|' .env.node
+        echo "  ✅ Обновлен SSL_CLIENT_CERT_FILE"
+    fi
+    
+    # Обновить UVICORN_SSL настройки для сервера
+    if ! grep -q "^UVICORN_SSL_CERTFILE=" .env.node; then
+        echo "UVICORN_SSL_CERTFILE=/var/lib/marzban-node/node-certs/certificate.pem" >> .env.node
+        echo "  ✅ Добавлен UVICORN_SSL_CERTFILE"
+    fi
+    
+    if ! grep -q "^UVICORN_SSL_KEYFILE=" .env.node; then
+        echo "UVICORN_SSL_KEYFILE=/var/lib/marzban-node/node-certs/key.pem" >> .env.node
+        echo "  ✅ Добавлен UVICORN_SSL_KEYFILE"
+    fi
+    
+    if ! grep -q "^UVICORN_SSL_CA_TYPE=" .env.node; then
+        echo "UVICORN_SSL_CA_TYPE=private" >> .env.node
+        echo "  ✅ Добавлен UVICORN_SSL_CA_TYPE"
+    fi
+    
+    # Проверить CONTROL_SERVER_URL
+    if ! grep -q "^CONTROL_SERVER_URL=" .env.node; then
+        echo "CONTROL_SERVER_URL=https://panel.anomaly-connect.online" >> .env.node
+        echo "  ✅ Добавлен CONTROL_SERVER_URL"
+    else
+        CURRENT_URL=$(grep "^CONTROL_SERVER_URL=" .env.node | cut -d'=' -f2)
+        if [ "$CURRENT_URL" != "https://panel.anomaly-connect.online" ]; then
+            sed -i 's|^CONTROL_SERVER_URL=.*|CONTROL_SERVER_URL=https://panel.anomaly-connect.online|' .env.node
+            echo "  ✅ Обновлен CONTROL_SERVER_URL"
+        fi
+    fi
+    
+    echo ""
+    echo "📋 Текущая конфигурация .env.node:"
+    grep -E "SSL_CLIENT_CERT_FILE|UVICORN_SSL|CONTROL_SERVER_URL" .env.node
+    echo ""
+    
+    # Перезапустить ноду
+    echo "🔄 Перезапуск ноды..."
+    if docker ps | grep -q anomaly-node; then
+        docker-compose -f docker-compose.node.yml restart marzban-node 2>/dev/null || \
+        docker restart anomaly-node 2>/dev/null || \
+        echo "  ⚠️  Не удалось перезапустить автоматически"
+        echo "  💡 Выполните вручную: docker-compose -f docker-compose.node.yml restart marzban-node"
+    else
+        echo "  ⚠️  Нода не запущена"
+        echo "  💡 Запустите: docker-compose -f docker-compose.node.yml up -d"
+    fi
+    
+    echo ""
+    echo "✅ Готово!"
+    echo ""
+    echo "💡 Следующие шаги:"
+    echo "   1. Подождите 10-20 секунд"
+    echo "   2. Проверьте логи: docker logs anomaly-node --tail=30"
+    echo "   3. Вернитесь в панель Marzban и нажмите 'Переподключиться'"
+    echo ""
+    
 else
-    echo "    ❌ HTTP недоступен"
+    echo "⚠️  Этот скрипт должен быть запущен на Node Server (VPS #2)"
+    echo ""
+    echo "💡 Инструкции для Node Server:"
+    echo "   1. Подключитесь: ssh root@185.126.67.67"
+    echo "   2. Перейдите: cd /opt/Anomaly"
+    echo "   3. Обновите код: git pull"
+    echo "   4. Скачайте сертификат с Control Server:"
+    echo "      scp root@72.56.79.212:/var/lib/marzban-node/ssl/certificate.pem /tmp/node-cert.pem"
+    echo "   5. Запустите скрипт: ./fix-node-ssl-connection.sh /tmp/node-cert.pem"
+    echo ""
 fi
-
-echo ""
-echo "  Тест 2: HTTPS подключение (с SSL, игнорируя сертификат)..."
-HTTPS_RESPONSE=$(timeout 5 curl -k -s -o /dev/null -w "%{http_code}" "https://${NODE_IP}:${NODE_PORT}/ping" 2>/dev/null || echo "000")
-if [ "$HTTPS_RESPONSE" != "000" ] && [ "$HTTPS_RESPONSE" != "" ]; then
-    echo "    ✅ HTTPS доступен (код: $HTTPS_RESPONSE)"
-else
-    echo "    ❌ HTTPS недоступен"
-fi
-
-echo ""
-echo "  Тест 3: Проверка SSL сертификата..."
-SSL_INFO=$(timeout 5 openssl s_client -connect "${NODE_IP}:${NODE_PORT}" -servername "${NODE_IP}" </dev/null 2>/dev/null | grep -E "subject=|issuer=|Verify return code" || echo "Не удалось получить информацию о сертификате")
-if [ -n "$SSL_INFO" ]; then
-    echo "    📋 Информация о сертификате:"
-    echo "$SSL_INFO" | sed 's/^/      /'
-else
-    echo "    ⚠️  Не удалось получить информацию о сертификате"
-fi
-
-echo ""
-
-# 2. Рекомендации
-echo "💡 Рекомендации для исправления:"
-echo ""
-echo "1. На ноде проверьте сертификат:"
-echo "   - Убедитесь, что сертификат установлен правильно"
-echo "   - Проверьте путь к сертификату в .env.node:"
-echo "     SSL_CLIENT_CERT_FILE=/path/to/certificate.pem"
-echo ""
-echo "2. Проверьте логи marzban-node на ноде:"
-echo "   docker logs anomaly-node --tail=50 | grep -i 'ssl\|certificate\|error'"
-echo ""
-echo "3. Убедитесь, что marzban-node использует правильный сертификат:"
-echo "   - Сертификат должен быть скачан из панели Marzban"
-echo "   - Сертификат должен быть установлен на ноде"
-echo "   - Путь к сертификату должен быть указан в .env.node"
-echo ""
-echo "4. Если проблема сохраняется, попробуйте:"
-echo "   - Пересоздать ноду в панели"
-echo "   - Скачать новый сертификат"
-echo "   - Установить сертификат на ноде заново"
-echo ""
-
-echo "✅ Проверка завершена!"
-echo ""
-
