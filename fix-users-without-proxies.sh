@@ -8,21 +8,57 @@ echo "=================================================="
 cd /opt/Anomaly || exit 1
 
 # Get admin credentials
+# Try multiple possible variable names
+ADMIN_USER=""
+ADMIN_PASS=""
+
+# Check .env.marzban first
 if [ -f .env.marzban ]; then
-    ADMIN_USER=$(grep "^ADMIN_USERNAME=" .env.marzban | cut -d '=' -f2)
-    ADMIN_PASS=$(grep "^ADMIN_PASSWORD=" .env.marzban | cut -d '=' -f2)
-elif [ -f .env ]; then
-    ADMIN_USER=$(grep "^ADMIN_USERNAME=" .env | cut -d '=' -f2)
-    ADMIN_PASS=$(grep "^ADMIN_PASSWORD=" .env | cut -d '=' -f2)
-else
-    echo "❌ Не найден .env или .env.marzban"
-    exit 1
+    ADMIN_USER=$(grep -E "^ADMIN_USERNAME=|^ADMIN_USER=" .env.marzban | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    ADMIN_PASS=$(grep -E "^ADMIN_PASSWORD=|^ADMIN_PASS=" .env.marzban | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+fi
+
+# If not found, check .env
+if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
+    if [ -f .env ]; then
+        ADMIN_USER=$(grep -E "^ADMIN_USERNAME=|^ADMIN_USER=" .env | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+        ADMIN_PASS=$(grep -E "^ADMIN_PASSWORD=|^ADMIN_PASS=" .env | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    fi
+fi
+
+# If still not found, try to get from Marzban container environment
+if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
+    echo "🔍 Поиск учетных данных в контейнере Marzban..."
+    ADMIN_USER=$(docker exec anomaly-marzban env | grep -E "ADMIN_USERNAME|ADMIN_USER" | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    ADMIN_PASS=$(docker exec anomaly-marzban env | grep -E "ADMIN_PASSWORD|ADMIN_PASS" | head -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+fi
+
+# If still not found, try marzban-cli to get admin info
+if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
+    echo "🔍 Попытка использовать marzban-cli для получения информации..."
+    # Try common default username
+    ADMIN_USER="admin"
+    # Try to get password from marzban-cli or use interactive prompt
+    echo "⚠️  Учетные данные не найдены автоматически"
+    echo "💡 Попробуйте вручную:"
+    echo "   docker exec -it anomaly-marzban marzban-cli admin login"
+    echo ""
+    echo "Или укажите учетные данные:"
+    read -p "Имя пользователя (по умолчанию: admin): " input_user
+    ADMIN_USER="${input_user:-admin}"
+    read -sp "Пароль: " ADMIN_PASS
+    echo ""
 fi
 
 if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
     echo "❌ Не найдены учетные данные администратора"
+    echo "💡 Убедитесь, что в .env.marzban или .env указаны:"
+    echo "   ADMIN_USERNAME=ваш_логин"
+    echo "   ADMIN_PASSWORD=ваш_пароль"
     exit 1
 fi
+
+echo "✅ Найдены учетные данные для пользователя: $ADMIN_USER"
 
 # Get admin token
 echo "🔐 Получение токена администратора..."
