@@ -5,6 +5,16 @@ echo "🔍 Полная диагностика подключения ноды M
 echo "=============================================="
 echo ""
 
+# Обработка git конфликтов
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+    echo "💾 Сохранение локальных изменений..."
+    git stash > /dev/null 2>&1
+fi
+
+# Обновление кода
+echo "📥 Обновление кода..."
+git pull > /dev/null 2>&1
+
 # Проверка, на каком сервере запущен скрипт
 if [ ! -f docker-compose.yml ]; then
     echo "⚠️  Этот скрипт должен быть запущен на Control Server (VPS #1)"
@@ -132,11 +142,20 @@ echo ""
 echo "✅ Диагностика завершена"
 echo ""
 echo "💡 Рекомендации:"
-echo "   1. На Node Server выполните: ./generate-node-server-cert.sh"
-echo "   2. Проверьте логи ноды: docker logs anomaly-node --tail=50"
+echo "   1. На Node Server выполните:"
+echo "      ssh root@185.126.67.67"
+echo "      cd /opt/Anomaly"
+echo "      git pull"
+echo "      chmod +x fix-node-ssl-complete.sh"
+echo "      ./fix-node-ssl-complete.sh"
+echo ""
+echo "   2. После выполнения скрипта проверьте логи ноды:"
+echo "      docker logs anomaly-node --tail=50"
+echo ""
 echo "   3. Убедитесь, что сертификаты установлены:"
 echo "      ls -la /var/lib/marzban-node/ssl/certificate.pem"
 echo "      ls -la /var/lib/marzban-node/node-certs/certificate.pem"
 echo "      ls -la /var/lib/marzban-node/node-certs/key.pem"
+echo ""
 echo "   4. В панели Marzban нажмите 'Переподключиться'"
 echo ""
