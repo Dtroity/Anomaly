@@ -57,6 +57,10 @@ def get_user_keyboard(show_trial: bool = False) -> InlineKeyboardMarkup:
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     """Handle /start command"""
+    # Check if user is admin
+    from handlers.admin import is_admin as check_admin
+    is_admin_user = check_admin(message.from_user.id)
+    
     with get_db_context() as db:
         # Check if user exists
         user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
