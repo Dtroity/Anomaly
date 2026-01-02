@@ -65,39 +65,50 @@ fi
 
 echo "✅ Найдены учетные данные для пользователя: $ADMIN_USER"
 
-# Get admin token
-echo "🔐 Получение токена администратора..."
+# Get admin token via API
+echo "🔐 Получение токена администратора через API..."
 
-# Try marzban-cli first
-TOKEN=$(docker exec anomaly-marzban marzban-cli admin login --username "$ADMIN_USER" --password "$ADMIN_PASS" 2>/dev/null | grep -oP 'token=\K[^ ]+' || echo "")
-
-# If marzban-cli failed, try API directly
-if [ -z "$TOKEN" ]; then
-    echo "   Попытка через API..."
-    API_URL="http://localhost:62050"
-    if [ -f .env.marzban ]; then
-        MARZBAN_HOST=$(grep "^UVICORN_HOST=" .env.marzban | cut -d '=' -f2 | tr -d '"' | tr -d "'")
-        MARZBAN_PORT=$(grep "^UVICORN_PORT=" .env.marzban | cut -d '=' -f2 | tr -d '"' | tr -d "'")
-        if [ -n "$MARZBAN_HOST" ] && [ -n "$MARZBAN_PORT" ]; then
-            API_URL="http://${MARZBAN_HOST}:${MARZBAN_PORT}"
-        fi
+# Determine API URL
+API_URL="http://localhost:62050"
+if [ -f .env.marzban ]; then
+    MARZBAN_HOST=$(grep "^UVICORN_HOST=" .env.marzban | cut -d '=' -f2 | tr -d '"' | tr -d "'" | head -1)
+    MARZBAN_PORT=$(grep "^UVICORN_PORT=" .env.marzban | cut -d '=' -f2 | tr -d '"' | tr -d "'" | head -1)
+    if [ -n "$MARZBAN_HOST" ] && [ "$MARZBAN_HOST" != "0.0.0.0" ]; then
+        API_URL="http://${MARZBAN_HOST}:${MARZBAN_PORT}"
+    elif [ -n "$MARZBAN_PORT" ]; then
+        API_URL="http://localhost:${MARZBAN_PORT}"
     fi
-    
+fi
+
+# Try to get token from container's internal network
+CONTAINER_API_URL="http://marzban:62050"
+if docker exec anomaly-marzban curl -s -f "${CONTAINER_API_URL}/api/system" >/dev/null 2>&1; then
+    echo "   Используется внутренний URL контейнера: ${CONTAINER_API_URL}"
+    TOKEN_RESPONSE=$(docker exec anomaly-marzban curl -s -X POST "${CONTAINER_API_URL}/api/admin/token" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "username=${ADMIN_USER}&password=${ADMIN_PASS}" 2>/dev/null)
+else
+    echo "   Используется внешний URL: ${API_URL}"
     TOKEN_RESPONSE=$(curl -s -X POST "${API_URL}/api/admin/token" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "username=${ADMIN_USER}&password=${ADMIN_PASS}" 2>/dev/null)
-    
-    TOKEN=$(echo "$TOKEN_RESPONSE" | grep -oP '"access_token":"\K[^"]+' | head -1)
 fi
+
+# Extract token from response
+TOKEN=$(echo "$TOKEN_RESPONSE" | grep -oP '"access_token":"\K[^"]+' | head -1)
 
 if [ -z "$TOKEN" ]; then
     echo "❌ Не удалось получить токен администратора"
-    echo "💡 Проверьте учетные данные:"
-    echo "   SUDO_USERNAME=$ADMIN_USER"
-    echo "   SUDO_PASSWORD=***"
+    echo "💡 Ответ API: ${TOKEN_RESPONSE:0:200}"
     echo ""
-    echo "💡 Попробуйте вручную:"
-    echo "   docker exec -it anomaly-marzban marzban-cli admin login"
+    echo "💡 Проверьте:"
+    echo "   1. Учетные данные в .env.marzban:"
+    echo "      SUDO_USERNAME=$ADMIN_USER"
+    echo "      SUDO_PASSWORD=***"
+    echo "   2. Доступность Marzban API:"
+    echo "      curl -s ${API_URL}/api/system"
+    echo "   3. Попробуйте получить токен вручную:"
+    echo "      curl -X POST ${API_URL}/api/admin/token -d 'username=${ADMIN_USER}&password=ВАШ_ПАРОЛЬ'"
     exit 1
 fi
 
