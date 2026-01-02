@@ -6,6 +6,14 @@ echo "=================================================="
 
 cd /opt/Anomaly || exit 1
 
+# Handle git conflicts
+if git status --porcelain fix-users-simple.sh 2>/dev/null | grep -q "fix-users-simple.sh"; then
+    echo "💾 Сохранение локальных изменений..."
+    git stash push -m "Auto-stash fix-users-simple" fix-users-simple.sh 2>/dev/null || true
+    git pull
+    git stash pop 2>/dev/null || true
+fi
+
 # Get admin credentials
 ADMIN_USER="root"
 ADMIN_PASS=""
