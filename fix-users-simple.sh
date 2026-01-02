@@ -126,26 +126,86 @@ try:
         print(json.dumps(result))
 except Exception as e:
     print('{}', file=sys.stderr)
+    print(f'ERROR: {str(e)}', file=sys.stderr)
     sys.exit(1)
-" 2>/dev/null)
+" 2>&1)
 
-# Determine protocol
+# Debug: show what we got
+if [ -n "$INBOUNDS" ] && ! echo "$INBOUNDS" | grep -q "ERROR"; then
+    INBOUNDS_KEYS=$(echo "$INBOUNDS" | python3 -c "import sys, json; d=json.load(sys.stdin); print(list(d.keys()) if isinstance(d, dict) else 'not a dict')" 2>/dev/null || echo "parse error")
+    echo "   Получены inbounds: $INBOUNDS_KEYS"
+fi
+
+# Determine protocol - check if inbounds has vmess or vless
+HAS_VMESS=$(echo "$INBOUNDS" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    if isinstance(d, dict):
+        vmess = d.get('vmess', [])
+        if isinstance(vmess, list) and len(vmess) > 0:
+            print('yes')
+        elif vmess:
+            print('yes')
+        else:
+            print('no')
+    else:
+        print('no')
+except:
+    print('no')
+" 2>/dev/null || echo "no")
+
+HAS_VLESS=$(echo "$INBOUNDS" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    if isinstance(d, dict):
+        vless = d.get('vless', [])
+        if isinstance(vless, list) and len(vless) > 0:
+            print('yes')
+        elif vless:
+            print('yes')
+        else:
+            print('no')
+    else:
+        print('no')
+except:
+    print('no')
+" 2>/dev/null || echo "no")
+
 PROTOCOL=""
 PROXY_CONFIG=""
 
-if echo "$INBOUNDS" | python3 -c "import sys, json; d=json.load(sys.stdin); print('vmess' if d.get('vmess') else '')" 2>/dev/null | grep -q "vmess"; then
+if [ "$HAS_VMESS" = "yes" ]; then
     PROTOCOL="vmess"
-    UUID=$(python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || echo "$(cat /proc/sys/kernel/random/uuid)")
+    UUID=$(python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || echo "")
+    if [ -z "$UUID" ]; then
+        UUID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "")
+    fi
+    if [ -z "$UUID" ]; then
+        UUID=$(openssl rand -hex 16 2>/dev/null || echo "")
+    fi
     PROXY_CONFIG="{\"vmess\":{\"id\":\"${UUID}\"}}"
     echo "✅ Используется протокол: VMess"
-elif echo "$INBOUNDS" | python3 -c "import sys, json; d=json.load(sys.stdin); print('vless' if d.get('vless') else '')" 2>/dev/null | grep -q "vless"; then
+elif [ "$HAS_VLESS" = "yes" ]; then
     PROTOCOL="vless"
-    UUID=$(python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || echo "$(cat /proc/sys/kernel/random/uuid)")
+    UUID=$(python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || echo "")
+    if [ -z "$UUID" ]; then
+        UUID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "")
+    fi
+    if [ -z "$UUID" ]; then
+        UUID=$(openssl rand -hex 16 2>/dev/null || echo "")
+    fi
     PROXY_CONFIG="{\"vless\":{\"id\":\"${UUID}\",\"flow\":\"\"}}"
     echo "✅ Используется протокол: VLESS"
 else
     echo "❌ Не найдены доступные протоколы (vmess/vless)"
-    echo "💡 Настройте inbounds в панели Marzban"
+    echo "💡 Ответ API inbounds: ${INBOUNDS:0:300}"
+    echo ""
+    echo "💡 Настройте inbounds в панели Marzban:"
+    echo "   1. Откройте https://panel.anomaly-connect.online"
+    echo "   2. Перейдите в Settings -> Inbounds"
+    echo "   3. Добавьте VMess или VLESS inbound"
     exit 1
 fi
 
