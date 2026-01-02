@@ -203,31 +203,19 @@ async def callback_connect(callback: CallbackQuery):
             error_msg = str(e)
             logger.error(f"Error connecting user {user.telegram_id}: {e}")
             
-            # Provide user-friendly error messages
+            # Provide user-friendly error messages (keep them short to avoid MESSAGE_TOO_LONG)
             if "No proxy protocols available" in error_msg or "Could not determine available protocols" in error_msg:
-                user_msg = (
-                    "❌ Протоколы VPN не настроены в панели Marzban.\n\n"
-                    "Пожалуйста, настройте inbounds:\n"
-                    "1. Откройте панель Marzban\n"
-                    "2. Перейдите в Settings → Inbounds\n"
-                    "3. Создайте или включите хотя бы один inbound\n"
-                    "(VMess, VLESS, Trojan или Shadowsocks)"
-                )
+                user_msg = "❌ Протоколы VPN не настроены. Настройте inbounds в панели Marzban"
             elif "Protocol" in error_msg and "disabled" in error_msg:
-                user_msg = (
-                    "❌ Выбранный протокол VPN отключен на сервере.\n\n"
-                    "Пожалуйста, настройте inbounds в панели Marzban:\n"
-                    "https://panel.anomaly-connect.online"
-                )
+                user_msg = "❌ Протокол VPN отключен. Настройте inbounds в панели"
             else:
-                # Limit error message to 150 characters to avoid MESSAGE_TOO_LONG
-                # Telegram alert messages have a limit of 200 characters, but we use 150 to be safe
-                user_msg = f"Ошибка: {error_msg[:120]}"
+                # Limit error message to 100 characters to avoid MESSAGE_TOO_LONG
+                user_msg = f"Ошибка: {error_msg[:80]}"
             
             # Telegram alert messages have a limit of 200 characters
-            # Truncate if necessary (use 150 to be safe)
-            if len(user_msg) > 150:
-                user_msg = user_msg[:147] + "..."
+            # Truncate if necessary (use 100 to be safe)
+            if len(user_msg) > 100:
+                user_msg = user_msg[:97] + "..."
             
             await callback.answer(user_msg, show_alert=True)
 
