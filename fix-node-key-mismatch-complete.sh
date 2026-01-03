@@ -77,13 +77,48 @@ fi
 
 echo "   ✅ Учетные данные найдены (username: ${ADMIN_USERNAME:0:3}...)"
 
-# Проверка доступности Marzban
+# Проверка доступности Marzban и ожидание полного запуска
 echo "   Проверка доступности Marzban..."
-if ! docker exec anomaly-marzban curl -s http://localhost:62050/api/admin/token > /dev/null 2>&1; then
-    echo "   ⚠️  Marzban может быть недоступен, продолжаем..."
+MAX_RETRIES=10
+RETRY_COUNT=0
+MARZBAN_READY=false
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if docker exec anomaly-marzban python3 -c "
+import urllib.request
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+try:
+    with urllib.request.urlopen('http://localhost:62050/api/system', timeout=5) as response:
+        if response.status == 200:
+            exit(0)
+except:
+    exit(1)
+" 2>/dev/null; then
+        MARZBAN_READY=true
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    echo "   ⏳ Ожидание запуска Marzban... ($RETRY_COUNT/$MAX_RETRIES)"
+    sleep 2
+done
+
+if [ "$MARZBAN_READY" = "false" ]; then
+    echo "   ⚠️  Marzban может быть недоступен, но продолжаем попытку..."
 fi
 
-TOKEN=$(docker exec anomaly-marzban python3 -c "
+# Попытка получить токен с несколькими попытками
+TOKEN=""
+MAX_TOKEN_RETRIES=3
+TOKEN_RETRY=0
+
+while [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ] && [ -z "$TOKEN" ]; do
+    if [ $TOKEN_RETRY -gt 0 ]; then
+        echo "   ⏳ Повторная попытка получения токена... ($TOKEN_RETRY/$MAX_TOKEN_RETRIES)"
+        sleep 2
+    fi
+    
+    TOKEN=$(docker exec anomaly-marzban python3 -c "
 import urllib.request
 import urllib.parse
 import json
@@ -121,15 +156,32 @@ except Exception as e:
     print(f'ERROR: {type(e).__name__}: {str(e)[:200]}', file=sys.stderr)
     sys.exit(1)
 " 2>&1)
+    
+    TOKEN_RETRY=$((TOKEN_RETRY + 1))
+done
 
-if [ $? -ne 0 ] || [ -z "$TOKEN" ]; then
-    echo "❌ Не удалось получить токен админа"
-    echo "   Ошибка: $TOKEN"
+if [ -z "$TOKEN" ]; then
+    echo "❌ Не удалось получить токен админа после $MAX_TOKEN_RETRIES попыток"
     echo ""
-    echo "💡 Проверьте:"
+    echo "💡 Попробуйте получить токен вручную:"
+    echo "   docker exec anomaly-marzban python3 -c \\"
+    echo "   \""
+    echo "   import urllib.request"
+    echo "   import urllib.parse"
+    echo "   import json"
+    echo "   import ssl"
+    echo "   ssl._create_default_https_context = ssl._create_unverified_context"
+    echo "   data = urllib.parse.urlencode({'username': '$ADMIN_USERNAME', 'password': '$ADMIN_PASSWORD'}).encode()"
+    echo "   req = urllib.request.Request('http://marzban:62050/api/admin/token', data=data)"
+    echo "   req.add_header('Content-Type', 'application/x-www-form-urlencoded')"
+    echo "   with urllib.request.urlopen(req) as response:"
+    echo "       print(json.loads(response.read().decode()).get('access_token', ''))"
+    echo "   \""
+    echo ""
+    echo "💡 Или проверьте:"
     echo "   1. Правильность учетных данных в $ENV_FILE"
     echo "   2. Статус Marzban: docker-compose ps marzban"
-    echo "   3. Логи Marzban: docker-compose logs marzban --tail=20"
+    echo "   3. Логи Marzban: docker-compose logs --tail=50 marzban | grep -i error"
     exit 1
 fi
 
