@@ -2,7 +2,7 @@
 # Тест получения сертификата сервера ноды (как делает Marzban)
 
 echo "🔍 Тест получения сертификата сервера ноды"
-echo "==========================================="
+echo "=========================================="
 echo ""
 
 # Проверка, на каком сервере запущен скрипт
@@ -17,43 +17,64 @@ echo ""
 NODE_IP="185.126.67.67"
 NODE_PORT="62050"
 
-echo "1️⃣  Тест получения сертификата сервера (как Marzban)..."
+echo "1️⃣  Тест получения сертификата сервера (как делает Marzban)..."
+echo "   📋 Попытка получить сертификат через ssl.get_server_certificate():"
 CERT_TEST=$(docker exec anomaly-marzban python3 -c "
 import ssl
-import socket
+import sys
 
 NODE_IP = '$NODE_IP'
 NODE_PORT = $NODE_PORT
 
 try:
-    # Получить сертификат сервера (как делает Marzban в connect())
-    cert = ssl.get_server_certificate((NODE_IP, NODE_PORT))
-    print('SUCCESS: Server certificate obtained')
-    print(f'Certificate length: {len(cert)}')
-    print(f'Certificate preview: {cert[:100]}...')
-    if cert.startswith('-----BEGIN'):
-        print('Certificate format: Valid PEM')
-    else:
-        print('Certificate format: Invalid')
-except ssl.SSLError as e:
-    print(f'SSL_ERROR: {type(e).__name__}: {str(e)[:300]}')
-except socket.timeout as e:
-    print(f'TIMEOUT_ERROR: {type(e).__name__}: {str(e)[:300]}')
+    # Попробовать получить сертификат сервера (как делает Marzban в connect())
+    print(f'INFO: Attempting to get server certificate from {NODE_IP}:{NODE_PORT}...')
+    
+    # Создать SSL context без проверки (для получения сертификата)
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    
+    try:
+        server_cert = ssl.get_server_certificate((NODE_IP, NODE_PORT), ssl_version=ssl.PROTOCOL_TLS)
+        print('SUCCESS: Server certificate obtained')
+        print(f'Certificate length: {len(server_cert)}')
+        print(f'First 3 lines:')
+        for line in server_cert.split('\n')[:3]:
+            print(f'  {line}')
+    except ssl.SSLError as e:
+        print(f'SSL_ERROR: {str(e)[:300]}')
+        print('REASON: Cannot get server certificate due to SSL error')
+        sys.exit(1)
+    except Exception as e:
+        print(f'ERROR: {type(e).__name__}: {str(e)[:300]}')
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+        
 except Exception as e:
-    print(f'ERROR: {type(e).__name__}: {str(e)[:300]}')
+    print(f'SETUP_ERROR: {type(e).__name__}: {str(e)[:300]}')
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
 " 2>&1)
 
 if echo "$CERT_TEST" | grep -q "SUCCESS"; then
     echo "   ✅ Сертификат сервера получен успешно"
     echo "$CERT_TEST" | sed 's/^/      /'
 else
-    echo "   ❌ Не удалось получить сертификат сервера:"
+    echo "   ❌ Не удалось получить сертификат сервера"
     echo "$CERT_TEST" | sed 's/^/      /'
+    echo ""
+    echo "   💡 Это объясняет, почему Marzban не может подключиться!"
+    echo "      Marzban пытается получить сертификат сервера перед подключением,"
+    echo "      и если это не удается, подключение не происходит."
 fi
 
 echo ""
-echo "2️⃣  Тест подключения с клиентским сертификатом и получением сертификата сервера..."
-FULL_CONNECT_TEST=$(docker exec anomaly-marzban python3 -c "
+echo "2️⃣  Тест подключения с использованием полученного сертификата..."
+if echo "$CERT_TEST" | grep -q "SUCCESS"; then
+    CONNECTION_TEST=$(docker exec anomaly-marzban python3 -c "
 import sys
 sys.path.insert(0, '/code')
 import ssl
@@ -67,71 +88,66 @@ try:
     from app.db import GetDB
     from app.db.models import TLS
     
-    # Получить клиентский сертификат из базы данных
+    # Получить клиентский сертификат
     with GetDB() as db:
         tls = db.query(TLS).first()
         if not tls:
-            print('ERROR: TLS certificate not found in database')
+            print('ERROR: TLS certificate not found')
             sys.exit(1)
         
-        # Создать временные файлы для сертификата и ключа
-        cert_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.pem')
-        key_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.pem')
+        client_cert_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.pem')
+        client_key_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.pem')
         
-        cert_file.write(tls.certificate)
-        cert_file.flush()
+        client_cert_file.write(tls.certificate)
+        client_cert_file.flush()
         
-        key_file.write(tls.key)
-        key_file.flush()
-        
-        print(f'Client cert file: {cert_file.name}')
-        print(f'Client key file: {key_file.name}')
+        client_key_file.write(tls.key)
+        client_key_file.flush()
     
     # Получить сертификат сервера
-    try:
-        server_cert = ssl.get_server_certificate((NODE_IP, NODE_PORT))
-        print(f'SUCCESS: Server certificate obtained ({len(server_cert)} bytes)')
-    except Exception as e:
-        print(f'ERROR getting server cert: {type(e).__name__}: {str(e)[:200]}')
-        sys.exit(1)
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
     
-    # Создать сессию с клиентским сертификатом
+    server_cert = ssl.get_server_certificate((NODE_IP, NODE_PORT), ssl_version=ssl.PROTOCOL_TLS)
+    server_cert_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.pem')
+    server_cert_file.write(server_cert)
+    server_cert_file.flush()
+    
+    # Создать сессию как Marzban
+    from app.xray.node import SANIgnoringAdaptor
     session = requests.Session()
-    session.verify = False  # Отключить проверку сертификата сервера
-    session.cert = (cert_file.name, key_file.name)
+    session.mount('https://', SANIgnoringAdaptor())
+    session.cert = (client_cert_file.name, client_key_file.name)
+    session.verify = server_cert_file.name  # Как делает Marzban
     
-    # Попробовать подключиться к /connect
-    url = f'https://{NODE_IP}:{NODE_PORT}/connect'
-    data = {'session_id': None}
+    # Попробовать подключиться
+    connect_url = f'https://{NODE_IP}:{NODE_PORT}/connect'
+    print(f'INFO: Connecting to {connect_url}...')
     
     try:
-        response = session.post(url, json=data, timeout=10, verify=False)
-        print(f'SUCCESS: POST /connect - HTTP {response.status_code}')
-        result = response.json()
-        if 'session_id' in result:
-            print(f'Session ID: {result[\"session_id\"][:50]}...')
+        response = session.post(connect_url, json={'session_id': None}, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            session_id = data.get('session_id', 'N/A')
+            print(f'SUCCESS: Connected, Session ID: {session_id[:30]}...')
         else:
-            print(f'Response: {str(result)[:200]}')
-    except requests.exceptions.RequestException as e:
-        print(f'REQUEST_ERROR: {type(e).__name__}: {str(e)[:300]}')
-        sys.exit(1)
+            print(f'ERROR: HTTP {response.status_code}')
+            print(f'Response: {response.text[:200]}')
+    except requests.exceptions.SSLError as e:
+        print(f'SSL_ERROR: {str(e)[:300]}')
+    except Exception as e:
+        print(f'ERROR: {type(e).__name__}: {str(e)[:300]}')
         
 except Exception as e:
-    print(f'SETUP_ERROR: {type(e).__name__}: {str(e)[:300]}')
+    print(f'ERROR: {type(e).__name__}: {str(e)[:300]}')
     import traceback
     traceback.print_exc()
-    sys.exit(1)
-" 2>&1 | grep -v "UserWarning")
-
-if echo "$FULL_CONNECT_TEST" | grep -q "SUCCESS.*POST /connect"; then
-    echo "   ✅ Полное подключение успешно!"
-    echo "$FULL_CONNECT_TEST" | sed 's/^/      /'
-else
-    echo "   ❌ Полное подключение не удалось:"
-    echo "$FULL_CONNECT_TEST" | sed 's/^/      /'
+" 2>&1 | grep -v "UserWarning" | grep -v "InsecureRequestWarning")
+    
+    echo "$CONNECTION_TEST" | sed 's/^/      /'
 fi
 
 echo ""
 echo "✅ Тест завершен!"
 echo ""
-
