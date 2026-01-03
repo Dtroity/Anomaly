@@ -66,25 +66,58 @@ else
     exit 1
 fi
 
-# 2. Копирование скрипта установки на ноду
+# 2. Проверка SSH подключения
 echo ""
-echo "2️⃣  Копирование скрипта установки на ноду..."
-# Используем sshpass для автоматической передачи пароля
+echo "2️⃣  Проверка SSH подключения..."
 if command -v sshpass &> /dev/null; then
-    sshpass -p "$NODE_PASSWORD" scp -o StrictHostKeyChecking=no node-auto-setup.sh "$NODE_USER@$NODE_IP:/tmp/node-auto-setup.sh"
+    # Тест подключения с паролем
+    if sshpass -p "$NODE_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$NODE_USER@$NODE_IP" "echo 'SSH connection successful'" 2>&1 | grep -q "SSH connection successful"; then
+        echo "   ✅ SSH подключение успешно (с паролем)"
+        USE_SSHPASS=true
+    else
+        echo "   ⚠️  Подключение с паролем не удалось, пробую SSH ключи..."
+        USE_SSHPASS=false
+    fi
 else
-    echo "   ⚠️  sshpass не установлен, используйте SSH ключи или установите sshpass:"
-    echo "      apt-get install sshpass"
-    scp -o StrictHostKeyChecking=no node-auto-setup.sh "$NODE_USER@$NODE_IP:/tmp/node-auto-setup.sh"
+    echo "   ⚠️  sshpass не установлен, использую SSH ключи"
+    USE_SSHPASS=false
+fi
+
+# 3. Копирование скрипта установки на ноду
+echo ""
+echo "3️⃣  Копирование скрипта установки на ноду..."
+if [ "$USE_SSHPASS" = true ]; then
+    if sshpass -p "$NODE_PASSWORD" scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 node-auto-setup.sh "$NODE_USER@$NODE_IP:/tmp/node-auto-setup.sh" 2>&1; then
+        echo "   ✅ Скрипт скопирован (с паролем)"
+    else
+        echo "   ❌ Ошибка копирования с паролем, пробую SSH ключи..."
+        USE_SSHPASS=false
+        scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 node-auto-setup.sh "$NODE_USER@$NODE_IP:/tmp/node-auto-setup.sh" || {
+            echo "   ❌ Ошибка копирования скрипта"
+            echo "   💡 Решения:"
+            echo "      1. Проверьте пароль root на ноде"
+            echo "      2. Настройте SSH ключи: ssh-copy-id $NODE_USER@$NODE_IP"
+            echo "      3. Или скопируйте скрипт вручную и выполните на ноде"
+            exit 1
+        }
+    fi
+else
+    scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 node-auto-setup.sh "$NODE_USER@$NODE_IP:/tmp/node-auto-setup.sh" || {
+        echo "   ❌ Ошибка копирования скрипта"
+        echo "   💡 Решения:"
+        echo "      1. Настройте SSH ключи: ssh-copy-id $NODE_USER@$NODE_IP"
+        echo "      2. Или скопируйте скрипт вручную и выполните на ноде"
+        exit 1
+    }
 fi
 
 echo "   ✅ Скрипт скопирован"
 
-# 3. Выполнение скрипта установки на ноде
+# 4. Выполнение скрипта установки на ноде
 echo ""
-echo "3️⃣  Выполнение установки на ноде..."
-if command -v sshpass &> /dev/null; then
-    sshpass -p "$NODE_PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$NODE_IP" bash <<EOF
+echo "4️⃣  Выполнение установки на ноде..."
+if [ "$USE_SSHPASS" = true ]; then
+    sshpass -p "$NODE_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$NODE_USER@$NODE_IP" bash <<EOF
 export NODE_IP="$NODE_IP"
 export CONTROL_SERVER_URL="$CONTROL_SERVER_URL"
 export NODE_PORT="$NODE_PORT"
@@ -107,14 +140,14 @@ fi
 
 echo "   ✅ Установка выполнена"
 
-# 4. Синхронизация сертификата и ключа с ноды в базу данных
+# 5. Синхронизация сертификата и ключа с ноды в базу данных
 echo ""
-echo "4️⃣  Синхронизация сертификата и ключа..."
+echo "5️⃣  Синхронизация сертификата и ключа..."
 ./sync-cert-and-key-from-node.sh
 
-# 5. Создание ноды в Marzban через API
+# 6. Создание ноды в Marzban через API
 echo ""
-echo "5️⃣  Создание ноды в Marzban..."
+echo "6️⃣  Создание ноды в Marzban..."
 # Получение токена администратора
 ADMIN_TOKEN=$(docker exec anomaly-marzban python3 -c "
 import sys
