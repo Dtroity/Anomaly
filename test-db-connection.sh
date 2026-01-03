@@ -48,7 +48,7 @@ ls -la /code/config.py 2>&1
 " 2>&1)
 echo "$FILE_CHECK" | sed 's/^/      /'
 
-IMPORT_TEST=$(docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
+IMPORT_TEST=$(docker exec anomaly-marzban python3 -c "
 import sys
 import os
 
@@ -57,38 +57,37 @@ paths_to_try = ['/code', '/app', '/marzban']
 for path in paths_to_try:
     if os.path.exists(path):
         sys.path.insert(0, path)
-        print(f"Added to path: {path}")
+        print(f'Added to path: {path}')
 
-print(f"Python path: {sys.path[:3]}")
+print(f'Python path: {sys.path[:3]}')
 
 # Проверить наличие config
 try:
     import config
-    print("SUCCESS: config module imported")
+    print('SUCCESS: config module imported')
 except Exception as e:
-    print(f"WARNING: config import failed - {type(e).__name__}: {str(e)}")
+    print(f'WARNING: config import failed - {type(e).__name__}: {str(e)}')
 
 try:
     from app.db import GetDB
-    print("SUCCESS: GetDB imported")
+    print('SUCCESS: GetDB imported')
 except Exception as e:
-    print(f"ERROR: GetDB import failed - {type(e).__name__}: {str(e)}")
+    print(f'ERROR: GetDB import failed - {type(e).__name__}: {str(e)}')
     import traceback
-    print("Full traceback:")
+    print('Full traceback:')
     traceback.print_exc()
     sys.exit(1)
 
 try:
     from app.db.models import TLS, Node
-    print("SUCCESS: TLS and Node models imported")
+    print('SUCCESS: TLS and Node models imported')
 except Exception as e:
-    print(f"ERROR: Models import failed - {type(e).__name__}: {str(e)}")
+    print(f'ERROR: Models import failed - {type(e).__name__}: {str(e)}')
     import traceback
-    print("Full traceback:")
+    print('Full traceback:')
     traceback.print_exc()
     sys.exit(1)
-PYTHON_SCRIPT
-2>&1)
+" 2>&1)
 
 if echo "$IMPORT_TEST" | grep -q "SUCCESS"; then
     echo "   ✅ Модули импортированы успешно"
@@ -105,7 +104,7 @@ fi
 
 echo ""
 echo "5️⃣  Проверка подключения к базе данных..."
-DB_TEST=$(docker exec anomaly-marzban python3 << 'PYTHON_SCRIPT'
+DB_TEST=$(docker exec anomaly-marzban python3 -c "
 import sys
 import os
 
@@ -121,30 +120,29 @@ try:
     with GetDB() as db:
         # Проверить TLS
         tls_count = db.query(TLS).count()
-        print(f"TLS records: {tls_count}")
+        print(f'TLS records: {tls_count}')
         
         if tls_count > 0:
             tls = db.query(TLS).first()
-            print(f"TLS certificate length: {len(tls.certificate) if tls.certificate else 0}")
-            print(f"TLS key length: {len(tls.key) if tls.key else 0}")
+            print(f'TLS certificate length: {len(tls.certificate) if tls.certificate else 0}')
+            print(f'TLS key length: {len(tls.key) if tls.key else 0}')
         
         # Проверить Nodes
         node_count = db.query(Node).count()
-        print(f"Node records: {node_count}")
+        print(f'Node records: {node_count}')
         
         if node_count > 0:
             nodes = db.query(Node).all()
             for node in nodes:
-                print(f"  - {node.name}: {node.address}:{node.port} (status: {node.status})")
+                print(f'  - {node.name}: {node.address}:{node.port} (status: {node.status})')
         
-        print("SUCCESS: Database connection OK")
+        print('SUCCESS: Database connection OK')
 except Exception as e:
-    print(f"ERROR: {type(e).__name__}: {str(e)}")
+    print(f'ERROR: {type(e).__name__}: {str(e)}')
     import traceback
     traceback.print_exc()
     sys.exit(1)
-PYTHON_SCRIPT
-2>&1)
+" 2>&1)
 
 if echo "$DB_TEST" | grep -q "SUCCESS"; then
     echo "   ✅ Подключение к базе данных успешно"
