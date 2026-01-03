@@ -190,51 +190,89 @@ echo ""
 
 # Получение информации о ноде
 echo "2️⃣  Получение информации о ноде..."
+
+# Сначала пробуем получить через API
 NODE_INFO=$(docker exec anomaly-marzban python3 -c "
 import urllib.request
 import json
 import ssl
+import time
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-req = urllib.request.Request('http://localhost:62050/api/nodes')
-req.add_header('Authorization', 'Bearer $TOKEN')
+token = '$TOKEN'
+max_retries = 3
 
+for attempt in range(max_retries):
+    try:
+        req = urllib.request.Request('http://localhost:62050/api/nodes')
+        req.add_header('Authorization', f'Bearer {token}')
+        
+        with urllib.request.urlopen(req, timeout=15) as response:
+            response_data = response.read().decode()
+            nodes = json.loads(response_data)
+            
+            # Обработка разных форматов ответа
+            if isinstance(nodes, dict):
+                if 'nodes' in nodes:
+                    nodes = nodes['nodes']
+                elif 'data' in nodes:
+                    nodes = nodes['data']
+            
+            if isinstance(nodes, list) and len(nodes) > 0:
+                # Ищем ноду по IP адресу или берем первую
+                target_node = None
+                for node in nodes:
+                    if node.get('address') == '$NODE_IP':
+                        target_node = node
+                        break
+                
+                if not target_node:
+                    target_node = nodes[0]
+                
+                print(json.dumps({
+                    'id': target_node.get('id'),
+                    'name': target_node.get('name'),
+                    'address': target_node.get('address'),
+                    'port': target_node.get('port'),
+                    'api_port': target_node.get('api_port')
+                }))
+                exit(0)
+    except Exception as e:
+        if attempt < max_retries - 1:
+            time.sleep(2)
+            continue
+        # Если API не работает, пробуем через базу данных
+        pass
+
+# Если API не работает, получаем через базу данных
 try:
-    with urllib.request.urlopen(req, timeout=10) as response:
-        response_data = response.read().decode()
-        nodes = json.loads(response_data)
+    import sys
+    sys.path.insert(0, '/code')
+    from app.db import GetDB
+    from app.db.models import Node
+    
+    with GetDB() as db:
+        node = db.query(Node).filter(Node.address == '$NODE_IP').first()
+        if not node:
+            node = db.query(Node).first()
         
-        # Диагностика: показываем что получили
-        print('DEBUG: Response type:', type(nodes).__name__, file=__import__('sys').stderr)
-        if isinstance(nodes, dict):
-            print('DEBUG: Keys:', list(nodes.keys()), file=__import__('sys').stderr)
-        
-        # Обработка разных форматов ответа
-        if isinstance(nodes, dict):
-            if 'nodes' in nodes:
-                nodes = nodes['nodes']
-            elif 'data' in nodes:
-                nodes = nodes['data']
-        
-        if isinstance(nodes, list) and len(nodes) > 0:
-            node = nodes[0]
+        if node:
             print(json.dumps({
-                'id': node.get('id'),
-                'name': node.get('name'),
-                'address': node.get('address'),
-                'port': node.get('port'),
-                'api_port': node.get('api_port')
+                'id': node.id,
+                'name': node.name,
+                'address': node.address,
+                'port': node.port,
+                'api_port': node.api_port
             }))
-        else:
-            print('{}')
-except Exception as e:
-    print(f'ERROR: {e}', file=__import__('sys').stderr)
-    print('{}')
+            exit(0)
+except Exception as db_error:
+    print('{}', file=__import__('sys').stderr)
+    exit(1)
 " 2>&1)
 
-# Извлекаем только JSON, игнорируя DEBUG сообщения
-NODE_INFO=$(echo "$NODE_INFO" | grep -E '^\{|^ERROR' | head -1)
+# Извлекаем только JSON
+NODE_INFO=$(echo "$NODE_INFO" | grep -E '^\{' | head -1)
 
 if [ "$NODE_INFO" = "{}" ] || [[ "$NODE_INFO" == ERROR* ]]; then
     echo "⚠️  Нода не найдена в Marzban"
