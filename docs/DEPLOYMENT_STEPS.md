@@ -103,10 +103,37 @@
 
 **ВАЖНО: Делайте это только после того, как DNS распространился!**
 
-1. **Откройте порты**
+1. **Откройте порты** (выберите подходящий способ для вашей системы)
+   
+   **Если используется ufw:**
    ```bash
    ufw allow 80/tcp
    ufw allow 443/tcp
+   ```
+   
+   **Если используется iptables:**
+   ```bash
+   iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+   iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+   ```
+   
+   **Если используется firewalld:**
+   ```bash
+   firewall-cmd --permanent --add-port=80/tcp
+   firewall-cmd --permanent --add-port=443/tcp
+   firewall-cmd --reload
+   ```
+   
+   **Или отключите файрвол полностью (не рекомендуется для продакшена):**
+   ```bash
+   # Для ufw:
+   ufw disable
+   
+   # Для iptables:
+   iptables -F
+   
+   # Для firewalld:
+   systemctl stop firewalld
    ```
 
 2. **Запустите скрипт настройки SSL**
