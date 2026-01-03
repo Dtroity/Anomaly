@@ -63,6 +63,11 @@ echo ""
 echo "4️⃣  Установка сертификата и ключа в базу данных Marzban..."
 if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
     echo "   📋 Обновление базы данных:"
+    
+    # Читаем содержимое файлов и передаем в Python скрипт через переменные окружения
+    CERT_CONTENT=$(cat "$CERT_FILE" | sed "s/'/\\\'/g" | sed ':a;N;$!ba;s/\n/\\n/g')
+    KEY_CONTENT=$(cat "$KEY_FILE" | sed "s/'/\\\'/g" | sed ':a;N;$!ba;s/\n/\\n/g')
+    
     docker exec anomaly-marzban python3 -c "
 import sys
 sys.path.insert(0, '/code')
@@ -70,11 +75,8 @@ from app.db import GetDB
 from app.db.models import TLS
 
 try:
-    with open('$CERT_FILE', 'r') as f:
-        cert = f.read()
-    
-    with open('$KEY_FILE', 'r') as f:
-        key = f.read()
+    cert = '''$CERT_CONTENT'''
+    key = '''$KEY_CONTENT'''
     
     with GetDB() as db:
         tls = db.query(TLS).first()
