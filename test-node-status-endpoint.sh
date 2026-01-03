@@ -25,6 +25,7 @@ import ssl
 import requests
 import tempfile
 import json
+import urllib3
 
 NODE_IP = '$NODE_IP'
 NODE_PORT = $NODE_PORT
@@ -57,9 +58,29 @@ try:
     server_cert_file.flush()
     
     # Создать сессию с клиентским сертификатом
+    # Отключаем проверку hostname (сертификат выдан для 'Gozargah', а не для IP)
+    import urllib3
+    urllib3.disable_warnings()
+    
+    # Создать SSL context без проверки hostname
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    
     session = requests.Session()
-    session.verify = server_cert_file.name
+    session.verify = False  # Отключаем проверку сертификата сервера
     session.cert = (cert_file.name, key_file.name)
+    
+    # Использовать SSL context без проверки hostname
+    from requests.adapters import HTTPAdapter
+    from urllib3.poolmanager import PoolManager
+    
+    class NoHostnameCheckAdapter(HTTPAdapter):
+        def init_poolmanager(self, *args, **kwargs):
+            kwargs['ssl_context'] = ssl_context
+            return super().init_poolmanager(*args, **kwargs)
+    
+    session.mount('https://', NoHostnameCheckAdapter())
     
     # Подключиться к /connect
     connect_url = f'https://{NODE_IP}:{NODE_PORT}/connect'
