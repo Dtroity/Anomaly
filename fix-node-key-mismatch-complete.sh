@@ -20,12 +20,67 @@ echo ""
 
 # Получение токена админа
 echo "1️⃣  Получение токена админа..."
-ADMIN_USERNAME=$(grep -E "^SUDO_USERNAME=" .env.marzban 2>/dev/null | cut -d'=' -f2 | tr -d '"' || grep -E "^ADMIN_USERNAME=" .env.marzban 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "")
-ADMIN_PASSWORD=$(grep -E "^SUDO_PASSWORD=" .env.marzban 2>/dev/null | cut -d'=' -f2 | tr -d '"' || grep -E "^ADMIN_PASSWORD=" .env.marzban 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "")
+
+# Проверка наличия файла .env.marzban
+if [ ! -f ".env.marzban" ]; then
+    echo "❌ Файл .env.marzban не найден"
+    echo "   Проверяю альтернативные пути..."
+    if [ -f "marzban/.env.marzban" ]; then
+        ENV_FILE="marzban/.env.marzban"
+    elif [ -f ".env" ]; then
+        ENV_FILE=".env"
+    else
+        echo "❌ Не удалось найти файл с переменными окружения"
+        exit 1
+    fi
+else
+    ENV_FILE=".env.marzban"
+fi
+
+echo "   Используется файл: $ENV_FILE"
+
+ADMIN_USERNAME=$(grep -E "^SUDO_USERNAME=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | head -1)
+if [ -z "$ADMIN_USERNAME" ]; then
+    ADMIN_USERNAME=$(grep -E "^ADMIN_USERNAME=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | head -1)
+fi
+
+ADMIN_PASSWORD=$(grep -E "^SUDO_PASSWORD=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | head -1)
+if [ -z "$ADMIN_PASSWORD" ]; then
+    ADMIN_PASSWORD=$(grep -E "^ADMIN_PASSWORD=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | head -1)
+fi
+
+# Попробуем получить из переменных окружения контейнера
+if [ -z "$ADMIN_USERNAME" ] || [ -z "$ADMIN_PASSWORD" ]; then
+    echo "   Пробую получить из переменных окружения контейнера..."
+    ADMIN_USERNAME=$(docker exec anomaly-marzban env | grep -E "^SUDO_USERNAME=" | cut -d'=' -f2 | head -1)
+    if [ -z "$ADMIN_USERNAME" ]; then
+        ADMIN_USERNAME=$(docker exec anomaly-marzban env | grep -E "^ADMIN_USERNAME=" | cut -d'=' -f2 | head -1)
+    fi
+    
+    ADMIN_PASSWORD=$(docker exec anomaly-marzban env | grep -E "^SUDO_PASSWORD=" | cut -d'=' -f2 | head -1)
+    if [ -z "$ADMIN_PASSWORD" ]; then
+        ADMIN_PASSWORD=$(docker exec anomaly-marzban env | grep -E "^ADMIN_PASSWORD=" | cut -d'=' -f2 | head -1)
+    fi
+fi
 
 if [ -z "$ADMIN_USERNAME" ] || [ -z "$ADMIN_PASSWORD" ]; then
-    echo "❌ Не удалось найти учетные данные админа в .env.marzban"
+    echo "❌ Не удалось найти учетные данные админа"
+    echo ""
+    echo "💡 Попробуйте указать вручную:"
+    echo "   export ADMIN_USERNAME='ваш_username'"
+    echo "   export ADMIN_PASSWORD='ваш_password'"
+    echo "   ./fix-node-key-mismatch-complete.sh"
+    echo ""
+    echo "   Или проверьте файл $ENV_FILE"
     exit 1
+fi
+
+echo "   ✅ Учетные данные найдены (username: ${ADMIN_USERNAME:0:3}...)"
+
+# Проверка доступности Marzban
+echo "   Проверка доступности Marzban..."
+if ! docker exec anomaly-marzban curl -s http://localhost:62050/api/admin/token > /dev/null 2>&1; then
+    echo "   ⚠️  Marzban может быть недоступен, продолжаем..."
 fi
 
 TOKEN=$(docker exec anomaly-marzban python3 -c "
@@ -33,23 +88,48 @@ import urllib.request
 import urllib.parse
 import json
 import ssl
+import sys
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-data = urllib.parse.urlencode({'username': '$ADMIN_USERNAME', 'password': '$ADMIN_PASSWORD'}).encode()
+username = '$ADMIN_USERNAME'
+password = '$ADMIN_PASSWORD'
+
+data = urllib.parse.urlencode({'username': username, 'password': password}).encode()
 req = urllib.request.Request('http://marzban:62050/api/admin/token', data=data)
 req.add_header('Content-Type', 'application/x-www-form-urlencoded')
 
 try:
-    with urllib.request.urlopen(req) as response:
-        result = json.loads(response.read().decode())
-        print(result.get('access_token', ''))
+    with urllib.request.urlopen(req, timeout=10) as response:
+        if response.status == 200:
+            result = json.loads(response.read().decode())
+            token = result.get('access_token', '')
+            if token:
+                print(token)
+            else:
+                print('ERROR: Token not found in response', file=sys.stderr)
+                sys.exit(1)
+        else:
+            error_text = response.read().decode()
+            print(f'ERROR: HTTP {response.status}: {error_text[:200]}', file=sys.stderr)
+            sys.exit(1)
+except urllib.error.HTTPError as e:
+    error_text = e.read().decode() if hasattr(e, 'read') else str(e)
+    print(f'ERROR: HTTP {e.code}: {error_text[:200]}', file=sys.stderr)
+    sys.exit(1)
 except Exception as e:
-    print('')
-" 2>/dev/null)
+    print(f'ERROR: {type(e).__name__}: {str(e)[:200]}', file=sys.stderr)
+    sys.exit(1)
+" 2>&1)
 
-if [ -z "$TOKEN" ]; then
+if [ $? -ne 0 ] || [ -z "$TOKEN" ]; then
     echo "❌ Не удалось получить токен админа"
+    echo "   Ошибка: $TOKEN"
+    echo ""
+    echo "💡 Проверьте:"
+    echo "   1. Правильность учетных данных в $ENV_FILE"
+    echo "   2. Статус Marzban: docker-compose ps marzban"
+    echo "   3. Логи Marzban: docker-compose logs marzban --tail=20"
     exit 1
 fi
 
