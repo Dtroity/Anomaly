@@ -7,10 +7,31 @@ import asyncio
 import threading
 import concurrent.futures
 import uuid
+import json
+import os
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
+
+# #region agent log
+DEBUG_LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".cursor", "debug.log")
+def _debug_log(location: str, message: str, data: dict = None, hypothesis_id: str = None):
+    try:
+        log_entry = {
+            "timestamp": int(datetime.utcnow().timestamp() * 1000),
+            "location": location,
+            "message": message,
+            "data": data or {},
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": hypothesis_id
+        }
+        with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+# #endregion
 
 
 class MarzbanService:
@@ -58,6 +79,15 @@ class MarzbanService:
         params: Optional[Dict] = None
     ) -> Dict:
         """Make authenticated request to Marzban API"""
+        # #region agent log
+        _debug_log(
+            "marzban.py:_request:entry",
+            f"API request started",
+            {"method": method, "endpoint": endpoint, "has_json": json_data is not None, "has_params": params is not None},
+            "A"
+        )
+        # #endregion
+        
         token = await self._get_token()
         # Marzban uses /api for all endpoints (system, user, etc.)
         # No /api/v1 prefix needed
@@ -68,6 +98,15 @@ class MarzbanService:
             "Content-Type": "application/json"
         }
         
+        # #region agent log
+        _debug_log(
+            "marzban.py:_request:before_request",
+            f"Before API request",
+            {"url": url, "method": method, "endpoint": endpoint},
+            "A"
+        )
+        # #endregion
+        
         async with aiohttp.ClientSession() as session:
             async with session.request(
                 method=method,
@@ -77,15 +116,57 @@ class MarzbanService:
                 params=params,
                 ssl=False
             ) as response:
+                # #region agent log
+                _debug_log(
+                    "marzban.py:_request:response",
+                    f"API response received",
+                    {"status": response.status, "endpoint": endpoint, "method": method},
+                    "A"
+                )
+                # #endregion
+                
                 if response.status in [200, 201]:
-                    return await response.json()
+                    result = await response.json()
+                    # #region agent log
+                    _debug_log(
+                        "marzban.py:_request:success",
+                        f"API request successful",
+                        {"status": response.status, "endpoint": endpoint, "result_keys": list(result.keys()) if isinstance(result, dict) else "not_dict"},
+                        "A"
+                    )
+                    # #endregion
+                    return result
                 elif response.status == 204:
+                    # #region agent log
+                    _debug_log(
+                        "marzban.py:_request:no_content",
+                        f"API request returned 204 No Content",
+                        {"endpoint": endpoint},
+                        "A"
+                    )
+                    # #endregion
                     return {}
                 elif response.status == 404:
                     error_text = await response.text()
+                    # #region agent log
+                    _debug_log(
+                        "marzban.py:_request:not_found",
+                        f"API request returned 404",
+                        {"endpoint": endpoint, "error": error_text},
+                        "A"
+                    )
+                    # #endregion
                     raise Exception(f"Not found: {error_text}")
                 else:
                     error_text = await response.text()
+                    # #region agent log
+                    _debug_log(
+                        "marzban.py:_request:error",
+                        f"API request failed",
+                        {"status": response.status, "endpoint": endpoint, "error": error_text},
+                        "A"
+                    )
+                    # #endregion
                     raise Exception(
                         f"Marzban API error: {method} {endpoint} - "
                         f"{response.status} - {error_text}"
@@ -99,6 +180,15 @@ class MarzbanService:
         proxies: Optional[Dict] = None
     ) -> Dict:
         """Create new user in Marzban"""
+        # #region agent log
+        _debug_log(
+            "marzban.py:create_user:entry",
+            f"Creating user",
+            {"username": username, "has_data_limit": data_limit is not None, "has_expire_date": expire_date is not None, "has_proxies": proxies is not None},
+            "B"
+        )
+        # #endregion
+        
         # If no proxies specified, try to use available protocols
         # Try to get available inbounds to determine which protocol to use
         if not proxies:
@@ -181,7 +271,27 @@ class MarzbanService:
         if expire_date:
             payload["expire"] = int(expire_date.timestamp())
         
-        return await self._request("POST", "/user", json_data=payload)
+        # #region agent log
+        _debug_log(
+            "marzban.py:create_user:before_request",
+            f"Before creating user via API",
+            {"username": username, "payload_keys": list(payload.keys())},
+            "B"
+        )
+        # #endregion
+        
+        result = await self._request("POST", "/user", json_data=payload)
+        
+        # #region agent log
+        _debug_log(
+            "marzban.py:create_user:success",
+            f"User created successfully",
+            {"username": username, "result_username": result.get("username") if isinstance(result, dict) else None},
+            "B"
+        )
+        # #endregion
+        
+        return result
     
     async def get_user(self, username: str) -> Optional[Dict]:
         """Get user information"""
@@ -281,10 +391,46 @@ class MarzbanService:
     
     async def delete_user(self, username: str) -> bool:
         """Delete user from Marzban"""
+        # #region agent log
+        _debug_log(
+            "marzban.py:delete_user:entry",
+            f"Deleting user",
+            {"username": username},
+            "C"
+        )
+        # #endregion
+        
         try:
+            # #region agent log
+            _debug_log(
+                "marzban.py:delete_user:before_request",
+                f"Before deleting user via API",
+                {"username": username},
+                "C"
+            )
+            # #endregion
+            
             await self._request("DELETE", f"/user/{username}")
+            
+            # #region agent log
+            _debug_log(
+                "marzban.py:delete_user:success",
+                f"User deleted successfully",
+                {"username": username},
+                "C"
+            )
+            # #endregion
+            
             return True
         except Exception as e:
+            # #region agent log
+            _debug_log(
+                "marzban.py:delete_user:error",
+                f"Error deleting user",
+                {"username": username, "error": str(e)},
+                "C"
+            )
+            # #endregion
             logger.error(f"Error deleting user {username}: {e}")
             return False
     
@@ -441,4 +587,49 @@ class MarzbanService:
     def get_subscription_url_sync(self, username: str) -> Optional[str]:
         """Synchronous wrapper for get_subscription_url"""
         return asyncio.run(self.get_subscription_url(username))
+    
+    async def revoke_subscription(self, username: str) -> Dict:
+        """Revoke user subscription"""
+        # #region agent log
+        _debug_log(
+            "marzban.py:revoke_subscription:entry",
+            f"Revoking subscription",
+            {"username": username},
+            "D"
+        )
+        # #endregion
+        
+        try:
+            # #region agent log
+            _debug_log(
+                "marzban.py:revoke_subscription:before_request",
+                f"Before revoking subscription via API",
+                {"username": username},
+                "D"
+            )
+            # #endregion
+            
+            result = await self._request("POST", f"/user/{username}/revoke_sub")
+            
+            # #region agent log
+            _debug_log(
+                "marzban.py:revoke_subscription:success",
+                f"Subscription revoked successfully",
+                {"username": username, "result_username": result.get("username") if isinstance(result, dict) else None},
+                "D"
+            )
+            # #endregion
+            
+            return result
+        except Exception as e:
+            # #region agent log
+            _debug_log(
+                "marzban.py:revoke_subscription:error",
+                f"Error revoking subscription",
+                {"username": username, "error": str(e)},
+                "D"
+            )
+            # #endregion
+            logger.error(f"Error revoking subscription for {username}: {e}")
+            raise
 

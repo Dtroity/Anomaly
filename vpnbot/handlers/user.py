@@ -2,6 +2,8 @@
 User handlers for Telegram bot
 """
 import logging
+import json
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -22,6 +24,25 @@ from services.logging_service import LoggingService
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+# #region agent log
+DEBUG_LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".cursor", "debug.log")
+def _debug_log(location: str, message: str, data: dict = None, hypothesis_id: str = None):
+    try:
+        log_entry = {
+            "timestamp": int(datetime.utcnow().timestamp() * 1000),
+            "location": location,
+            "message": message,
+            "data": data or {},
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": hypothesis_id
+        }
+        with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+# #endregion
 
 router = Router()
 
@@ -229,6 +250,16 @@ async def callback_connect(callback: CallbackQuery):
         
         except Exception as e:
             error_msg = str(e)
+            
+            # #region agent log
+            _debug_log(
+                "user.py:callback_connect:error",
+                f"Error connecting user",
+                {"telegram_id": callback.from_user.id, "error": error_msg, "error_type": type(e).__name__},
+                "E"
+            )
+            # #endregion
+            
             logger.error(f"Error connecting user {user.telegram_id}: {e}")
             
             # Provide user-friendly error messages (keep them short to avoid MESSAGE_TOO_LONG)
