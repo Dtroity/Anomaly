@@ -28,6 +28,8 @@ echo ""
 echo "1️⃣  Получение информации о текущей ноде..."
 NODE_INFO=$(docker exec anomaly-marzban python3 -c "
 import sys
+import warnings
+warnings.filterwarnings('ignore')
 sys.path.insert(0, '/code')
 from app.db import GetDB
 from app.db.models import Node
@@ -41,7 +43,7 @@ try:
             print('NOT_FOUND')
 except Exception as e:
     print(f'ERROR: {e}')
-" 2>&1)
+" 2>&1 | grep -v "UserWarning" | grep -v "pkg_resources" | grep -E "^[0-9]+\|" | head -1)
 
 if [[ "$NODE_INFO" == ERROR* ]]; then
     echo "❌ Ошибка при получении информации о ноде: $NODE_INFO"
@@ -56,6 +58,8 @@ if [ "$NODE_INFO" != "NOT_FOUND" ]; then
     echo "2️⃣  Удаление старой ноды из базы данных..."
     docker exec anomaly-marzban python3 -c "
 import sys
+import warnings
+warnings.filterwarnings('ignore')
 sys.path.insert(0, '/code')
 from app.db import GetDB
 from app.db.models import Node
@@ -73,7 +77,7 @@ try:
 except Exception as e:
     print(f'ERROR: {e}')
     sys.exit(1)
-" 2>&1
+" 2>&1 | grep -v "UserWarning" | grep -v "pkg_resources"
     
     if [ $? -eq 0 ]; then
         echo "   ✅ Нода удалена из базы данных"
@@ -88,8 +92,30 @@ fi
 
 # 3. Создание новой ноды в базе данных
 echo "3️⃣  Создание новой ноды в базе данных..."
+echo "   ⚠️  ВАЖНО: Создание ноды напрямую в БД может не сгенерировать правильный сертификат"
+echo "   💡 Рекомендуется создать ноду через панель вручную"
+echo ""
+read -p "   Продолжить автоматическое создание? (y/n): " -n 1 -r
+echo ""
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo ""
+    echo "💡 Инструкция для ручного создания:"
+    echo "   1. Откройте: https://panel.anomaly-connect.online"
+    echo "   2. Перейдите в Nodes"
+    echo "   3. Удалите существующую ноду 'Node 1' (если есть)"
+    echo "   4. Создайте новую ноду:"
+    echo "      - Имя: Node 1"
+    echo "      - Адрес: $NODE_IP"
+    echo "      - Порт: $NODE_PORT"
+    echo "      - API порт: $API_PORT"
+    echo "   5. После создания выполните: ./fix-node-cert-direct.sh"
+    exit 0
+fi
+
 NEW_NODE_ID=$(docker exec anomaly-marzban python3 -c "
 import sys
+import warnings
+warnings.filterwarnings('ignore')
 sys.path.insert(0, '/code')
 from app.db import GetDB
 from app.db.models import Node
@@ -115,7 +141,7 @@ try:
 except Exception as e:
     print(f'ERROR: {e}')
     sys.exit(1)
-" 2>&1)
+" 2>&1 | grep -v "UserWarning" | grep -v "pkg_resources" | grep -E "^[0-9]+$" | head -1)
 
 if [[ "$NEW_NODE_ID" == ERROR* ]]; then
     echo "❌ Ошибка при создании ноды: $NEW_NODE_ID"
@@ -139,6 +165,8 @@ NEW_CERT=""
 while [ $RETRY -lt $MAX_RETRIES ]; do
     NEW_CERT=$(docker exec anomaly-marzban python3 -c "
 import sys
+import warnings
+warnings.filterwarnings('ignore')
 sys.path.insert(0, '/code')
 from app.db import GetDB
 from app.db.models import TLS
@@ -160,7 +188,7 @@ try:
 except Exception as e:
     print(f'ERROR: {e}', file=sys.stderr)
     exit(1)
-" 2>&1)
+" 2>&1 | grep -v "UserWarning" | grep -v "pkg_resources")
     
     if [ ! -z "$NEW_CERT" ] && [[ ! "$NEW_CERT" == ERROR* ]] && [ "$(echo "$NEW_CERT" | grep -c "BEGIN CERTIFICATE")" -gt 0 ]; then
         break
@@ -186,6 +214,8 @@ echo ""
 echo "6️⃣  Получение ключа из базы данных..."
 NEW_KEY=$(docker exec anomaly-marzban python3 -c "
 import sys
+import warnings
+warnings.filterwarnings('ignore')
 sys.path.insert(0, '/code')
 from app.db import GetDB
 from app.db.models import TLS
@@ -201,7 +231,7 @@ try:
 except Exception as e:
     print(f'ERROR: {e}', file=sys.stderr)
     sys.exit(1)
-" 2>&1)
+" 2>&1 | grep -v "UserWarning" | grep -v "pkg_resources")
 
 if [[ "$NEW_KEY" == ERROR* ]] || [ -z "$NEW_KEY" ]; then
     echo "❌ Не удалось получить ключ из базы данных"

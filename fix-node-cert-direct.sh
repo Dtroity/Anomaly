@@ -23,6 +23,8 @@ echo ""
 echo "1️⃣  Получение сертификата из базы данных Marzban..."
 DB_CERT=$(docker exec anomaly-marzban python3 -c "
 import sys
+import warnings
+warnings.filterwarnings('ignore')
 sys.path.insert(0, '/code')
 from app.db import GetDB
 from app.db.models import TLS
@@ -38,7 +40,7 @@ try:
 except Exception as e:
     print(f'ERROR: {e}', file=sys.stderr)
     sys.exit(1)
-" 2>&1)
+" 2>&1 | grep -v "UserWarning" | grep -v "pkg_resources")
 
 if [[ "$DB_CERT" == ERROR* ]] || [ -z "$DB_CERT" ] || [ ! "$(echo "$DB_CERT" | grep -c "BEGIN CERTIFICATE")" -gt 0 ]; then
     echo "❌ Не удалось получить сертификат из базы данных"
@@ -53,6 +55,8 @@ echo ""
 echo "2️⃣  Получение ключа из базы данных Marzban..."
 DB_KEY=$(docker exec anomaly-marzban python3 -c "
 import sys
+import warnings
+warnings.filterwarnings('ignore')
 sys.path.insert(0, '/code')
 from app.db import GetDB
 from app.db.models import TLS
@@ -68,7 +72,7 @@ try:
 except Exception as e:
     print(f'ERROR: {e}', file=sys.stderr)
     sys.exit(1)
-" 2>&1)
+" 2>&1 | grep -v "UserWarning" | grep -v "pkg_resources")
 
 if [[ "$DB_KEY" == ERROR* ]] || [ -z "$DB_KEY" ] || [ ! "$(echo "$DB_KEY" | grep -c "BEGIN.*PRIVATE KEY")" -gt 0 ]; then
     echo "❌ Не удалось получить ключ из базы данных"
