@@ -159,6 +159,7 @@ echo "   ✅ Установка выполнена"
 # 5. Синхронизация сертификата и ключа с ноды в базу данных
 echo ""
 echo "5️⃣  Синхронизация сертификата и ключа..."
+chmod +x sync-cert-and-key-from-node.sh
 ./sync-cert-and-key-from-node.sh
 
 # 6. Создание ноды в Marzban через API
