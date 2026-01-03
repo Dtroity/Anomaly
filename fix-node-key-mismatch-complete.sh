@@ -342,19 +342,45 @@ CERT_CONTENT=$(docker exec anomaly-marzban python3 -c "
 import urllib.request
 import json
 import ssl
+import time
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-req = urllib.request.Request('http://marzban:62050/api/node/$NODE_ID/certificate')
-req.add_header('Authorization', 'Bearer $TOKEN')
+token = '$TOKEN'
+node_id = $NODE_ID
+max_retries = 3
 
-try:
-    with urllib.request.urlopen(req) as response:
-        result = json.loads(response.read().decode())
-        print(result.get('certificate', ''))
-except Exception as e:
-    print('')
-" 2>/dev/null)
+for attempt in range(max_retries):
+    try:
+        req = urllib.request.Request(f'http://localhost:62050/api/node/{node_id}/certificate')
+        req.add_header('Authorization', f'Bearer {token}')
+        
+        with urllib.request.urlopen(req, timeout=15) as response:
+            if response.status == 200:
+                result = json.loads(response.read().decode())
+                cert = result.get('certificate', '')
+                if cert and 'BEGIN CERTIFICATE' in cert:
+                    print(cert)
+                    exit(0)
+                else:
+                    print(f'ERROR: Invalid certificate format', file=__import__('sys').stderr)
+            else:
+                error_text = response.read().decode()
+                print(f'ERROR: HTTP {response.status}: {error_text[:200]}', file=__import__('sys').stderr)
+    except urllib.error.HTTPError as e:
+        error_text = e.read().decode() if hasattr(e, 'read') else str(e)
+        if attempt < max_retries - 1:
+            time.sleep(2)
+            continue
+        print(f'ERROR: HTTP {e.code}: {error_text[:200]}', file=__import__('sys').stderr)
+    except Exception as e:
+        if attempt < max_retries - 1:
+            time.sleep(2)
+            continue
+        print(f'ERROR: {type(e).__name__}: {str(e)[:200]}', file=__import__('sys').stderr)
+
+exit(1)
+" 2>&1)
 
 if [ -z "$CERT_CONTENT" ] || [ ! "$(echo "$CERT_CONTENT" | grep -c "BEGIN CERTIFICATE")" -gt 0 ]; then
     echo "❌ Не удалось скачать сертификат из панели"
