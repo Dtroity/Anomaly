@@ -52,13 +52,15 @@ import time
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-for attempt in range(3):
+# Пробуем localhost вместо marzban
+for attempt in range(5):
     try:
         data = urllib.parse.urlencode({'username': '$ADMIN_USERNAME', 'password': '$ADMIN_PASSWORD'}).encode()
+        # Пробуем localhost
         req = urllib.request.Request('http://localhost:62050/api/admin/token', data=data)
         req.add_header('Content-Type', 'application/x-www-form-urlencoded')
         
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=15) as response:
             if response.status == 200:
                 result = json.loads(response.read().decode())
                 token = result.get('access_token', '')
@@ -66,9 +68,22 @@ for attempt in range(3):
                     print(token)
                     exit(0)
     except Exception as e:
-        if attempt < 2:
-            time.sleep(2)
+        if attempt < 4:
+            time.sleep(3)
             continue
+        # Если localhost не работает, пробуем через 127.0.0.1
+        try:
+            req = urllib.request.Request('http://127.0.0.1:62050/api/admin/token', data=data)
+            req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+            with urllib.request.urlopen(req, timeout=15) as response:
+                if response.status == 200:
+                    result = json.loads(response.read().decode())
+                    token = result.get('access_token', '')
+                    if token:
+                        print(token)
+                        exit(0)
+        except:
+            pass
         print(f'ERROR: {e}')
         exit(1)
 " 2>&1)
