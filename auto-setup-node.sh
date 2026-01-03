@@ -17,15 +17,27 @@ NODE_PORT="${5:-62050}"
 API_PORT="${6:-62051}"
 CONTROL_SERVER_URL="${7:-https://panel.anomaly-connect.online}"
 
+# Проверка SSH подключения без пароля (SSH ключи)
 if [ -z "$NODE_PASSWORD" ]; then
-    echo "❌ Ошибка: Пароль root не указан"
-    echo ""
-    echo "Использование:"
-    echo "  $0 <NODE_IP> <NODE_USER> <NODE_PASSWORD> [NODE_NAME] [NODE_PORT] [API_PORT] [CONTROL_SERVER_URL]"
-    echo ""
-    echo "Пример:"
-    echo "  $0 185.126.67.67 root MyPassword123 'Node 1' 62050 62051 https://panel.anomaly-connect.online"
-    exit 1
+    echo "ℹ️  Пароль не указан, проверяю SSH ключи..."
+    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes "$NODE_USER@$NODE_IP" "echo 'SSH key connection successful'" 2>/dev/null | grep -q "SSH key connection successful"; then
+        echo "   ✅ SSH ключи настроены, пароль не требуется"
+        USE_SSHPASS=false
+    else
+        echo "   ❌ SSH ключи не настроены, требуется пароль"
+        echo ""
+        echo "Использование:"
+        echo "  $0 <NODE_IP> <NODE_USER> <NODE_PASSWORD> [NODE_NAME] [NODE_PORT] [API_PORT] [CONTROL_SERVER_URL]"
+        echo ""
+        echo "Пример:"
+        echo "  $0 185.126.67.67 root MyPassword123 'Node 1' 62050 62051 https://panel.anomaly-connect.online"
+        echo ""
+        echo "Или настройте SSH ключи:"
+        echo "  ssh-copy-id $NODE_USER@$NODE_IP"
+        exit 1
+    fi
+else
+    USE_SSHPASS=true
 fi
 
 echo "📋 Параметры:"
@@ -69,18 +81,22 @@ fi
 # 2. Проверка SSH подключения
 echo ""
 echo "2️⃣  Проверка SSH подключения..."
-if command -v sshpass &> /dev/null; then
+if [ "$USE_SSHPASS" = true ] && command -v sshpass &> /dev/null; then
     # Тест подключения с паролем
     if sshpass -p "$NODE_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$NODE_USER@$NODE_IP" "echo 'SSH connection successful'" 2>&1 | grep -q "SSH connection successful"; then
         echo "   ✅ SSH подключение успешно (с паролем)"
-        USE_SSHPASS=true
     else
         echo "   ⚠️  Подключение с паролем не удалось, пробую SSH ключи..."
         USE_SSHPASS=false
     fi
 else
-    echo "   ⚠️  sshpass не установлен, использую SSH ключи"
-    USE_SSHPASS=false
+    # Тест подключения с SSH ключами
+    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes "$NODE_USER@$NODE_IP" "echo 'SSH key connection successful'" 2>/dev/null | grep -q "SSH key connection successful"; then
+        echo "   ✅ SSH подключение успешно (SSH ключи)"
+    else
+        echo "   ❌ SSH подключение не удалось"
+        exit 1
+    fi
 fi
 
 # 3. Копирование скрипта установки на ноду
