@@ -18,40 +18,31 @@ NODE_IP="185.126.67.67"
 NODE_PORT="62050"
 CERT_FILE="/tmp/node-cert-from-node.pem"
 
-echo "1️⃣  Получение сертификата с ноды..."
-echo "   📋 Подключение к ноде и получение сертификата:"
-CERT_FETCH=$(docker exec anomaly-marzban python3 -c "
-import ssl
-import sys
+echo "1️⃣  Получение клиентского сертификата с ноды..."
+echo "   📋 Копирование сертификата с ноды через SSH:"
+echo "   💡 Убедитесь, что у вас есть SSH доступ к ноде (185.126.67.67)"
+echo ""
 
-NODE_IP = '$NODE_IP'
-NODE_PORT = $NODE_PORT
-CERT_FILE = '$CERT_FILE'
-
-try:
-    # Получить сертификат сервера (это клиентский сертификат для Marzban)
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
+# Попробовать скопировать через SSH
+if command -v scp &> /dev/null; then
+    echo "   📋 Копирование через SCP..."
+    scp root@185.126.67.67:/var/lib/marzban-node/ssl/certificate.pem "$CERT_FILE" 2>&1 | sed 's/^/      /'
     
-    server_cert = ssl.get_server_certificate((NODE_IP, NODE_PORT), ssl_version=ssl.PROTOCOL_TLS)
-    
-    # Сохранить в файл
-    with open(CERT_FILE, 'w') as f:
-        f.write(server_cert)
-    
-    print(f'SUCCESS: Certificate saved to {CERT_FILE}')
-    print(f'Certificate length: {len(server_cert)}')
-    print(f'First 3 lines:')
-    for line in server_cert.split('\n')[:3]:
-        print(f'  {line}')
-        
-except Exception as e:
-    print(f'ERROR: {type(e).__name__}: {str(e)[:300]}')
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
-" 2>&1)
+    if [ -f "$CERT_FILE" ]; then
+        CERT_FETCH="SUCCESS: Certificate copied from node"
+        echo "   ✅ Сертификат скопирован с ноды"
+    else
+        CERT_FETCH="ERROR: Failed to copy certificate via SCP"
+        echo "   ❌ Не удалось скопировать сертификат через SCP"
+    fi
+else
+    echo "   ⚠️  SCP не найден, используйте альтернативный метод:"
+    echo "      1. На ноде выполните:"
+    echo "         docker exec anomaly-node cat /var/lib/marzban-node/ssl/certificate.pem > /tmp/node-cert.pem"
+    echo "      2. Скопируйте файл вручную на Control Server в /tmp/node-cert-from-node.pem"
+    echo "      3. Затем запустите: ./fix-node-cert-in-db.sh /tmp/node-cert-from-node.pem"
+    exit 1
+fi
 
 if echo "$CERT_FETCH" | grep -q "SUCCESS"; then
     echo "   ✅ Сертификат получен с ноды"
