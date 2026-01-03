@@ -197,15 +197,27 @@ import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-req = urllib.request.Request('http://marzban:62050/api/nodes')
+req = urllib.request.Request('http://localhost:62050/api/nodes')
 req.add_header('Authorization', 'Bearer $TOKEN')
 
 try:
-    with urllib.request.urlopen(req) as response:
-        nodes = json.loads(response.read().decode())
-        if isinstance(nodes, dict) and 'nodes' in nodes:
-            nodes = nodes['nodes']
-        if nodes and len(nodes) > 0:
+    with urllib.request.urlopen(req, timeout=10) as response:
+        response_data = response.read().decode()
+        nodes = json.loads(response_data)
+        
+        # Диагностика: показываем что получили
+        print('DEBUG: Response type:', type(nodes).__name__, file=__import__('sys').stderr)
+        if isinstance(nodes, dict):
+            print('DEBUG: Keys:', list(nodes.keys()), file=__import__('sys').stderr)
+        
+        # Обработка разных форматов ответа
+        if isinstance(nodes, dict):
+            if 'nodes' in nodes:
+                nodes = nodes['nodes']
+            elif 'data' in nodes:
+                nodes = nodes['data']
+        
+        if isinstance(nodes, list) and len(nodes) > 0:
             node = nodes[0]
             print(json.dumps({
                 'id': node.get('id'),
@@ -217,16 +229,71 @@ try:
         else:
             print('{}')
 except Exception as e:
+    print(f'ERROR: {e}', file=__import__('sys').stderr)
     print('{}')
-" 2>/dev/null)
+" 2>&1)
 
-if [ "$NODE_INFO" = "{}" ]; then
-    echo "❌ Нода не найдена в Marzban"
-    exit 1
+# Извлекаем только JSON, игнорируя DEBUG сообщения
+NODE_INFO=$(echo "$NODE_INFO" | grep -E '^\{|^ERROR' | head -1)
+
+if [ "$NODE_INFO" = "{}" ] || [[ "$NODE_INFO" == ERROR* ]]; then
+    echo "⚠️  Нода не найдена в Marzban"
+    echo ""
+    echo "💡 Создание ноды..."
+    
+    # Создаем ноду
+    NODE_CREATE_RESULT=$(docker exec anomaly-marzban python3 -c "
+import urllib.request
+import json
+import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
+
+node_data = {
+    'name': 'Node 1',
+    'address': '$NODE_IP',
+    'port': 62050,
+    'api_port': 62051,
+    'usage_coefficient': 1.0
+}
+
+data = json.dumps(node_data).encode()
+req = urllib.request.Request('http://localhost:62050/api/node', data=data)
+req.add_header('Authorization', 'Bearer $TOKEN')
+req.add_header('Content-Type', 'application/json')
+
+try:
+    with urllib.request.urlopen(req, timeout=10) as response:
+        result = json.loads(response.read().decode())
+        print(json.dumps({
+            'id': result.get('id'),
+            'name': result.get('name'),
+            'address': result.get('address'),
+            'port': result.get('port'),
+            'api_port': result.get('api_port')
+        }))
+except Exception as e:
+    print(f'ERROR: {e}')
+" 2>&1)
+    
+    if [[ "$NODE_CREATE_RESULT" == ERROR* ]]; then
+        echo "❌ Не удалось создать ноду: $NODE_CREATE_RESULT"
+        exit 1
+    fi
+    
+    NODE_INFO="$NODE_CREATE_RESULT"
+    echo "✅ Нода создана"
+    echo ""
 fi
 
 NODE_ID=$(echo "$NODE_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))" 2>/dev/null)
 NODE_NAME=$(echo "$NODE_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('name', ''))" 2>/dev/null)
+
+if [ -z "$NODE_ID" ]; then
+    echo "❌ Не удалось определить ID ноды"
+    echo "   Ответ API: $NODE_INFO"
+    exit 1
+fi
 
 echo "   Найдена нода: $NODE_NAME (ID: $NODE_ID)"
 echo ""
